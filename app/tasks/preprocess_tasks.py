@@ -1,34 +1,32 @@
 import sys
 import os
+import yaml
+import tempfile
 from datetime import datetime
 from pathlib import Path
 
-# Add the MRI pipeline to the Python path
-pipeline_path = Path(__file__).parent.parent.parent / "mri_sr_pipeline"
-sys.path.insert(0, str(pipeline_path))
-
 from celery import shared_task
-from sqlalchemy.orm import Session
 from app.core.database import SessionLocal
 from app.models import Job, JobStatus
 from app.core.config import settings
 
-# Import the existing MRI preprocessing pipeline
-try:
-    from src.pipeline import MRIPreprocessingPipeline
-    from src.brain_extraction import BrainExtractor
-    from src.normalize import IntensityNormalizer
-    import ants
-    
-    # Initialize reusable instances (reuse across tasks)
-    _brain_extractor = None
-    _intensity_normalizer = None
-except ImportError as e:
-    print(f"Warning: Could not import MRI pipeline modules: {e}")
-    MRIPreprocessingPipeline = None
-    _brain_extractor = None
-    _intensity_normalizer = None
+# Resolve pipeline directory from settings (supports both Docker and local paths)
+PIPELINE_DIR = Path(settings.PIPELINE_DIR).resolve()
+sys.path.insert(0, str(PIPELINE_DIR))
 
+try:
+    from src.pipeline import run_single, PipelineResult
+    PIPELINE_AVAILABLE = True
+except ImportError as e:
+    print(f"WARNING: mri_sr_pipeline not available at {PIPELINE_DIR}: {e}")
+    run_single = None
+    PipelineResult = None
+    PIPELINE_AVAILABLE = False
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
 def update_job_status(
     job_id: str,
@@ -37,146 +35,170 @@ def update_job_status(
     error_message: str = None,
     output_files: list = None,
     lr_file_url: str = None,
-    hr_file_url: str = None
+    hr_file_url: str = None,
 ):
-    """Update job status in database."""
+    """Update job record in the database."""
     db = SessionLocal()
     try:
         job = db.query(Job).filter(Job.id == job_id).first()
-        if job:
-            job.status = status
-            if progress is not None:
-                job.progress = progress
-            if error_message:
-                job.error_message = error_message
-            if output_files:
-                job.output_files = output_files
-            if lr_file_url:
-                job.lr_file_url = lr_file_url
-            if hr_file_url:
-                job.hr_file_url = hr_file_url
-            
-            if status == JobStatus.PROCESSING and not job.started_at:
-                job.started_at = datetime.utcnow()
-            elif status == JobStatus.COMPLETED:
-                job.completed_at = datetime.utcnow()
-                job.progress = 100
-            
-            db.commit()
+        if not job:
+            return
+        job.status = status
+        if progress is not None:
+            job.progress = progress
+        if error_message:
+            job.error_message = error_message
+        if output_files is not None:
+            job.output_files = output_files
+        if lr_file_url:
+            job.lr_file_url = lr_file_url
+        if hr_file_url:
+            job.hr_file_url = hr_file_url
+
+        if status == JobStatus.PROCESSING and not job.started_at:
+            job.started_at = datetime.utcnow()
+        elif status == JobStatus.COMPLETED:
+            job.completed_at = datetime.utcnow()
+            job.progress = 100
+
+        db.commit()
     finally:
         db.close()
 
 
-def get_brain_extractor():
-    """Get or create brain extractor instance."""
-    global _brain_extractor
-    if _brain_extractor is None and BrainExtractor is not None:
-        _brain_extractor = BrainExtractor(device='cpu', disable_tta=True, verbose=True)
-    return _brain_extractor
+def _write_job_config(job_id: str, output_dir: str) -> str:
+    """
+    Write a temporary YAML config for this specific job.
+    Overrides output paths so intermediates & outputs land in the job directory.
+    Returns path to the temporary config file.
+    """
+    base_config = Path(settings.PIPELINE_CONFIG).resolve()
+    with open(base_config) as f:
+        cfg = yaml.safe_load(f)
+
+    template_dir = Path(settings.TEMPLATE_DIR).resolve()
+
+    # Per-job path overrides
+    cfg['paths']['output_dir'] = output_dir
+    cfg['paths']['intermediate_dir'] = os.path.join(output_dir, 'intermediate')
+    cfg['paths']['template_path'] = str(template_dir / 'mni152_template.nii.gz')
+    cfg['paths']['template_mask_path'] = str(template_dir / 'mni152_mask.nii.gz')
+
+    tmp = tempfile.NamedTemporaryFile(
+        mode='w', suffix='.yaml', delete=False, prefix=f'job_{job_id}_'
+    )
+    yaml.dump(cfg, tmp)
+    tmp.close()
+    return tmp.name
 
 
-def get_intensity_normalizer():
-    """Get or create intensity normalizer instance."""
-    global _intensity_normalizer
-    if _intensity_normalizer is None and IntensityNormalizer is not None:
-        _intensity_normalizer = IntensityNormalizer(method='whitestripe', modality='T1')
-    return _intensity_normalizer
+def _build_file_url(job_id: str, abs_path: str) -> str:
+    """
+    Convert an absolute output path to an API-accessible URL.
+    e.g. /abs/.../outputs/{job_id}/HR/file.nii.gz -> /api/files/{job_id}/HR/file.nii.gz
+    """
+    try:
+        output_base = Path(settings.OUTPUT_DIR).resolve()
+        rel = Path(abs_path).resolve().relative_to(output_base)
+        return f"/api/files/{rel.as_posix()}"
+    except ValueError:
+        # Fallback: use just the job_id + filename
+        filename = Path(abs_path).name
+        return f"/api/files/{job_id}/{filename}"
 
+
+# ---------------------------------------------------------------------------
+# Celery Task
+# ---------------------------------------------------------------------------
 
 @shared_task(bind=True, name="app.tasks.preprocess_tasks.preprocess_pipeline_task")
 def preprocess_pipeline_task(self, job_id: str, file_paths: list):
     """
-    Execute MRI preprocessing pipeline on uploaded files.
-    
-    Steps:
-    1. Load MRI scans
-    2. Brain extraction (HD-BET)
-    3. N4 bias correction
-    4. Intensity normalization
-    5. Generate HR and degraded LR pairs
-    6. Save outputs
+    Run the full mri_sr_pipeline on each uploaded NIfTI file.
+    Produces HR + all LR degradation variants under data/outputs/{job_id}/.
     """
+    if not PIPELINE_AVAILABLE:
+        update_job_status(
+            job_id, JobStatus.FAILED,
+            error_message="mri_sr_pipeline package not available on worker"
+        )
+        return
+
+    update_job_status(job_id, JobStatus.PROCESSING, progress=5)
+
+    output_dir = os.path.join(
+        Path(settings.OUTPUT_DIR).resolve(), job_id
+    )
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Write a per-job config YAML with correct absolute paths
+    tmp_config = _write_job_config(job_id, output_dir)
+
+    all_output_files = []
+
     try:
-        update_job_status(job_id, JobStatus.PROCESSING, progress=0)
-        
-        # Create output directory
-        output_dir = os.path.join(settings.OUTPUT_DIR, job_id)
-        os.makedirs(output_dir, exist_ok=True)
-        
-        output_files = []
-        
         for idx, file_path in enumerate(file_paths):
-            # Update progress
-            base_progress = int((idx / len(file_paths)) * 90)
+            # Proportional progress: 5% → 95% spread across files
+            base_progress = 5 + int((idx / len(file_paths)) * 90)
             update_job_status(job_id, JobStatus.PROCESSING, progress=base_progress)
-            
-            # Load MRI scan
-            print(f"Loading: {file_path}")
-            img = ants.image_read(file_path)
-            
-            # Step 1: Brain extraction (10% progress per step)
-            update_job_status(job_id, JobStatus.PROCESSING, progress=base_progress + 10)
-            print("Extracting brain...")
-            extractor = get_brain_extractor()
-            brain_img = extractor.extract_brain(img) if extractor else img
-            
-            # Step 2: Bias correction
-            update_job_status(job_id, JobStatus.PROCESSING, progress=base_progress + 30)
-            print("Applying bias correction...")
-            corrected_img = ants.n4_bias_field_correction(brain_img)
-            
-            # Step 3: Normalization
-            update_job_status(job_id, JobStatus.PROCESSING, progress=base_progress + 50)
-            print("Normalizing intensity...")
-            normalizer = get_intensity_normalizer()
-            normalized_img = normalizer.apply(corrected_img) if normalizer else corrected_img
-            
-            # Step 4: Save HR image
-            update_job_status(job_id, JobStatus.PROCESSING, progress=base_progress + 70)
-            hr_filename = f"hr_{idx}.nii.gz"
-            hr_path = os.path.join(output_dir, hr_filename)
-            ants.image_write(normalized_img, hr_path)
-            
-            # Step 5: Generate LR image (degradation)
-            update_job_status(job_id, JobStatus.PROCESSING, progress=base_progress + 80)
-            print("Generating LR image...")
-            from src.degradation import DegradationSimulator
-            degrader = DegradationSimulator(normalized_img)
-            lr_img = degrader.simulate_in_plane_resolution(downsample_factor=2)
-            
-            lr_filename = f"lr_{idx}.nii.gz"
-            lr_path = os.path.join(output_dir, lr_filename)
-            ants.image_write(lr_img, lr_path)
-            
-            output_files.append({
-                "hr": hr_path,
-                "lr": lr_path
+
+            log_path = os.path.join(output_dir, f"pipeline_{idx}.log")
+
+            result: PipelineResult = run_single(
+                nifti_path=file_path,
+                output_dir=output_dir,
+                config_path=tmp_config,
+                log_path=log_path,
+            )
+
+            if not result.success:
+                update_job_status(
+                    job_id, JobStatus.FAILED,
+                    error_message=result.error
+                )
+                return
+
+            # Build URL-accessible paths for every output
+            hr_url = _build_file_url(job_id, result.hr_path)
+            lr_variant_urls = {
+                suffix: _build_file_url(job_id, path)
+                for suffix, path in result.lr_paths.items()
+            }
+
+            all_output_files.append({
+                "hr": hr_url,
+                "lr_variants": lr_variant_urls,
             })
-        
-        # Complete
+
+        # Pick primary URLs from first file:
+        # HR = the HR file; LR = inplane_ds2 if present, else first variant
+        primary = all_output_files[0]
+        hr_file_url = primary["hr"]
+        lr_variants = primary["lr_variants"]
+        lr_file_url = (
+            lr_variants.get("inplane_ds2")
+            or next(iter(lr_variants.values()), None)
+        )
+
         update_job_status(
             job_id,
             JobStatus.COMPLETED,
             progress=100,
-            output_files=output_files,
-            lr_file_url=f"/api/files/{job_id}/lr_0.nii.gz",
-            hr_file_url=f"/api/files/{job_id}/hr_0.nii.gz"
+            output_files=all_output_files,
+            hr_file_url=hr_file_url,
+            lr_file_url=lr_file_url,
         )
-        
-        return {
-            "status": "success",
-            "job_id": job_id,
-            "output_files": output_files
-        }
-        
+        return {"status": "success", "job_id": job_id}
+
     except Exception as e:
-        print(f"Error in preprocessing task: {str(e)}")
         import traceback
         traceback.print_exc()
-        
-        update_job_status(
-            job_id,
-            JobStatus.FAILED,
-            error_message=str(e)
-        )
+        update_job_status(job_id, JobStatus.FAILED, error_message=str(e))
         raise
+
+    finally:
+        # Clean up temporary config file
+        try:
+            os.unlink(tmp_config)
+        except OSError:
+            pass

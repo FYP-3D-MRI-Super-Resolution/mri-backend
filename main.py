@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.core.config import settings
 from app.core.database import engine, Base
-from app.api.routes import auth, preprocess, jobs, inference
+from app.api.routes import auth, preprocess, jobs, inference, files
 from app.middleware import add_exception_handlers
 from app.core.constants import APIEndpoints
 import os
@@ -42,6 +42,7 @@ app.include_router(auth.router, prefix=APIEndpoints.API_PREFIX)
 app.include_router(preprocess.router, prefix=APIEndpoints.API_PREFIX)
 app.include_router(jobs.router, prefix=APIEndpoints.API_PREFIX)
 app.include_router(inference.router, prefix=APIEndpoints.API_PREFIX)
+app.include_router(files.router, prefix=APIEndpoints.API_PREFIX)
 
 # Mount static files for serving outputs
 if os.path.exists(settings.OUTPUT_DIR):

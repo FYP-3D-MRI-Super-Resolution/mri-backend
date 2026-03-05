@@ -43,7 +43,12 @@ class Settings(BaseSettings):
     
     # Model
     MODEL_PATH: str = "./models/best_model.pth"
-    
+
+    # mri_sr_pipeline integration
+    PIPELINE_DIR: str = "../mri_sr_pipeline"
+    PIPELINE_CONFIG: str = "../mri_sr_pipeline/configs/config.yaml"
+    TEMPLATE_DIR: str = "../mri_sr_pipeline/data/templates"
+
     # Processing
     MAX_CONCURRENT_JOBS: int = 2
     
