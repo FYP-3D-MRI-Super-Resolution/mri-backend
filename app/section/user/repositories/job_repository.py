@@ -2,8 +2,8 @@
 
 from typing import List, Optional
 from sqlalchemy.orm import Session
-from app.models import Job, JobStatus
-from app.repositories.base_repository import BaseRepository
+from ..models import Job, JobStatus
+from .base_repository import BaseRepository
 
 
 class JobRepository(BaseRepository[Job]):

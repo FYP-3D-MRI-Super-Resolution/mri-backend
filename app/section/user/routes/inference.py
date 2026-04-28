@@ -9,12 +9,12 @@ from sqlalchemy.orm import Session
 from typing import Dict, Any
 
 from app.core.database import get_db
-from app.models import User
-from app.schemas import InferenceRequest, UploadResponse
+from ..models import User
+from ..schemas import InferenceRequest, UploadResponse
 from app.core.auth import get_current_user
-from app.services.job_service import JobService
-from app.services.file_service import FileService
-from app.tasks.inference_tasks import inference_task, preprocess_lr_for_inference_task
+from ..services.job_service import JobService
+from ..services.file_service import FileService
+from ..tasks.inference_tasks import inference_task, preprocess_lr_for_inference_task
 from app.core.constants import APIEndpoints, HTTPStatusMessages, JobConstants, EndpointDocs
 
 router = APIRouter(prefix=APIEndpoints.INFERENCE_PREFIX, tags=["Inference"])

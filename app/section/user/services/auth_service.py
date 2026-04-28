@@ -4,12 +4,12 @@ import uuid
 from sqlalchemy.orm import Session
 from typing import Tuple
 
-from app.models import User
-from app.schemas import UserCreate, UserLogin
+from ..models import User
+from ..schemas import UserCreate, UserLogin
 from app.core.auth import get_password_hash, verify_password, create_access_token
-from app.repositories.user_repository import UserRepository
+from ..repositories.user_repository import UserRepository
 from app.core.constants import ErrorMessages
-from app.utils.exceptions import (
+from app.shared.utils.exceptions import (
     ResourceAlreadyExistsException,
     UnauthorizedException,
     ResourceNotFoundException

@@ -6,11 +6,11 @@ import math
 from sqlalchemy.orm import Session
 from datetime import datetime
 
-from app.models import Job, JobStatus, User
-from app.repositories.job_repository import JobRepository
-from app.services.file_service import FileService
+from ..models import Job, JobStatus, User
+from ..repositories.job_repository import JobRepository
+from .file_service import FileService
 from app.core.constants import ErrorMessages
-from app.utils.exceptions import (
+from app.shared.utils.exceptions import (
     ResourceNotFoundException,
     ForbiddenException,
     InvalidJobStateException

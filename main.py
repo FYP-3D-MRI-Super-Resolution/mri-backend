@@ -3,8 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.core.config import settings
 from app.core.database import engine, Base
-from app.api.routes import auth, preprocess, jobs, inference, files
-from app.api.routes.files import dicom_router
+from app.section.user.routes import auth, preprocess, jobs, inference, files
+from app.section.user.routes.files import dicom_router
 from app.middleware import add_exception_handlers
 from app.core.constants import APIEndpoints
 import os

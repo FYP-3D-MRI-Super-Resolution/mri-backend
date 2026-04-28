@@ -4,7 +4,7 @@ from pydantic import BaseModel, computed_field
 from pydantic import ConfigDict
 from typing import Optional, List, Dict, Any
 from datetime import datetime
-from app.models import JobStatus
+from ..models import JobStatus
 
 
 # ---------------------------------------------------------------------------

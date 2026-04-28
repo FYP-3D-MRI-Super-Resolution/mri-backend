@@ -5,7 +5,7 @@ from datetime import datetime
 
 from celery import shared_task
 from app.core.database import SessionLocal
-from app.models import Job, JobStatus
+from ..models import Job, JobStatus
 from app.core.config import settings
 import torch
 import ants
