@@ -3,18 +3,32 @@ import os
 from pathlib import Path
 from datetime import datetime
 
-# Add the MRI pipeline to the Python path
-pipeline_path = Path(__file__).parent.parent.parent / "mri_sr_pipeline"
-sys.path.insert(0, str(pipeline_path))
-
 from celery import shared_task
-from sqlalchemy.orm import Session
 from app.core.database import SessionLocal
 from app.models import Job, JobStatus
 from app.core.config import settings
 import torch
 import ants
-import numpy as np
+
+# Resolve pipeline directory with fallback for worker containers.
+_pipeline_candidates = [
+    Path(settings.PIPELINE_DIR),
+    Path("/app/mri_sr_pipeline"),
+    Path("../mri_sr_pipeline"),
+]
+PIPELINE_DIR = next(
+    (candidate.resolve() for candidate in _pipeline_candidates if candidate.exists()),
+    Path(settings.PIPELINE_DIR).resolve(),
+)
+sys.path.insert(0, str(PIPELINE_DIR))
+
+try:
+    from src.inference import MRIInferencePipeline
+    PIPELINE_AVAILABLE = True
+except ImportError as e:
+    print(f"WARNING: mri_sr_pipeline inference module not available at {PIPELINE_DIR}: {e}")
+    MRIInferencePipeline = None
+    PIPELINE_AVAILABLE = False
 
 
 def update_job_status(
@@ -23,6 +37,7 @@ def update_job_status(
     progress: int = None,
     error_message: str = None,
     output_files: list = None,
+    lr_file_url: str = None,
     hr_file_url: str = None,
     metrics: dict = None
 ):
@@ -38,6 +53,8 @@ def update_job_status(
                 job.error_message = error_message
             if output_files:
                 job.output_files = output_files
+            if lr_file_url:
+                job.lr_file_url = lr_file_url
             if hr_file_url:
                 job.hr_file_url = hr_file_url
             if metrics:
@@ -79,6 +96,91 @@ class ModelManager:
 
 
 model_manager = ModelManager()
+
+
+class InferencePreprocessPipelineManager:
+    """Singleton manager for MRIInferencePipeline instance."""
+
+    _instance = None
+    _pipeline = None
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
+    def get_pipeline(self):
+        """Load and cache the inference preprocessing pipeline."""
+        if not PIPELINE_AVAILABLE:
+            raise RuntimeError("mri_sr_pipeline inference module is not available")
+
+        if self._pipeline is None:
+            config_path = Path(settings.PIPELINE_CONFIG).resolve()
+            self._pipeline = MRIInferencePipeline(str(config_path))
+        return self._pipeline
+
+
+inference_preprocess_manager = InferencePreprocessPipelineManager()
+
+
+def _build_file_url(abs_path: str) -> str:
+    """Convert an absolute output path to an API-accessible URL."""
+    output_base = Path(settings.OUTPUT_DIR).resolve()
+    rel = Path(abs_path).resolve().relative_to(output_base)
+    return f"/api/files/{rel.as_posix()}"
+
+
+@shared_task(bind=True, name="app.tasks.inference_tasks.preprocess_lr_for_inference_task")
+def preprocess_lr_for_inference_task(self, job_id: str, input_file_path: str):
+    """
+    Preprocess a single uploaded LR MRI scan using MRIInferencePipeline.
+
+    Output:
+      data/outputs/{job_id}/preprocessed/preprocessed_{original_name}.nii.gz
+    """
+    try:
+        if not PIPELINE_AVAILABLE:
+            raise RuntimeError("mri_sr_pipeline inference module not available on worker")
+
+        update_job_status(job_id, JobStatus.PROCESSING, progress=5)
+        pipeline = inference_preprocess_manager.get_pipeline()
+
+        update_job_status(job_id, JobStatus.PROCESSING, progress=20)
+        output_dir = Path(settings.OUTPUT_DIR).resolve() / job_id / "preprocessed"
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        input_name = Path(input_file_path).name
+        if input_name.endswith(".nii.gz"):
+            stem = input_name[:-7]
+        else:
+            stem = Path(input_name).stem
+        output_path = output_dir / f"preprocessed_{stem}.nii.gz"
+
+        update_job_status(job_id, JobStatus.PROCESSING, progress=45)
+        pipeline.process(input_path=input_file_path, output_path=str(output_path))
+
+        update_job_status(job_id, JobStatus.PROCESSING, progress=85)
+        output_url = _build_file_url(str(output_path))
+
+        update_job_status(
+            job_id,
+            JobStatus.COMPLETED,
+            progress=100,
+            output_files=[{"hr": output_url, "lr_variants": {}}],
+            hr_file_url=output_url,
+            lr_file_url=output_url,
+        )
+
+        return {
+            "status": "success",
+            "job_id": job_id,
+            "preprocessed_file_url": output_url,
+        }
+
+    except Exception as e:
+        print(f"Error in inference preprocessing task: {str(e)}")
+        update_job_status(job_id, JobStatus.FAILED, error_message=str(e))
+        raise
 
 
 @shared_task(bind=True, name="app.tasks.inference_tasks.inference_task")

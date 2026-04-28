@@ -27,6 +27,7 @@ class APIEndpoints:
     # Inference endpoints
     INFERENCE_PREFIX = "/infer"
     INFERENCE_RUN = ""
+    INFERENCE_PREPROCESS_UPLOAD = "/preprocess-upload"
 
 
 class HTTPStatusMessages:
@@ -151,3 +152,5 @@ class EndpointDocs:
     # Inference endpoints
     INFERENCE_RUN_SUMMARY = "Run inference"
     INFERENCE_RUN_DESC = "Run super-resolution inference on preprocessed low-resolution files"
+    INFERENCE_PREPROCESS_UPLOAD_SUMMARY = "Upload low-resolution MRI for inference preprocessing"
+    INFERENCE_PREPROCESS_UPLOAD_DESC = "Upload a low-resolution NIfTI MRI scan and run inference preprocessing pipeline"
