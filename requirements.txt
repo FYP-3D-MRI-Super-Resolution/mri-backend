@@ -16,6 +16,7 @@ email-validator>=2.0.0
 aiofiles==23.2.1
 boto3==1.34.34
 nibabel>=3.0,<4.0
+pydicom>=2.4.0
 numpy>=1.24.0
 torch>=2.6.0
 antspyx>=0.4.0

@@ -4,19 +4,70 @@ Handles HTTP requests and delegates business logic to services.
 Follows SOLID principles - Single Responsibility (routing only).
 """
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, UploadFile, File as FastAPIFile, status
 from sqlalchemy.orm import Session
 from typing import Dict, Any
 
 from app.core.database import get_db
 from app.models import User
-from app.schemas import InferenceRequest
+from app.schemas import InferenceRequest, UploadResponse
 from app.core.auth import get_current_user
 from app.services.job_service import JobService
-from app.tasks.inference_tasks import inference_task
+from app.services.file_service import FileService
+from app.tasks.inference_tasks import inference_task, preprocess_lr_for_inference_task
 from app.core.constants import APIEndpoints, HTTPStatusMessages, JobConstants, EndpointDocs
 
 router = APIRouter(prefix=APIEndpoints.INFERENCE_PREFIX, tags=["Inference"])
+
+
+@router.post(
+    APIEndpoints.INFERENCE_PREPROCESS_UPLOAD,
+    response_model=UploadResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary=EndpointDocs.INFERENCE_PREPROCESS_UPLOAD_SUMMARY,
+    description=EndpointDocs.INFERENCE_PREPROCESS_UPLOAD_DESC,
+)
+async def upload_lr_for_inference_preprocess(
+    file: UploadFile = FastAPIFile(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> UploadResponse:
+    """Upload one LR scan and run inference preprocessing pipeline asynchronously."""
+    job_service = JobService(db)
+    file_service = FileService(db)
+
+    job = job_service.create_job(
+        user=current_user,
+        job_type=JobConstants.JOB_TYPE_INFERENCE,
+    )
+
+    try:
+        file_paths, _ = await file_service.save_uploaded_files(
+            files=[file],
+            user=current_user,
+            job_id=job.id,
+        )
+
+        input_file_path = file_paths[0]
+        job.input_files = [input_file_path]
+        db.commit()
+
+        job_service.trigger_celery_task(
+            job=job,
+            task_function=preprocess_lr_for_inference_task,
+            args=[job.id, input_file_path],
+            queue=JobConstants.QUEUE_INFERENCE,
+        )
+
+        return UploadResponse(
+            job_id=job.id,
+            message=f"{HTTPStatusMessages.UPLOAD_SUCCESS}. {HTTPStatusMessages.PREPROCESSING_STARTED}.",
+            files_uploaded=1,
+        )
+
+    except Exception:
+        job_service.delete_job(job.id, current_user)
+        raise
 
 
 @router.post(

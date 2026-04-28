@@ -2,9 +2,22 @@
 
 from pydantic import BaseModel, computed_field
 from pydantic import ConfigDict
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 from app.models import JobStatus
+
+
+# ---------------------------------------------------------------------------
+# LR variant file URLs keyed by degradation suffix, e.g.:
+#   { "thick_3mm": "/api/files/{job_id}/LR/sub_thick_3mm.nii.gz", ... }
+# ---------------------------------------------------------------------------
+LRVariants = Dict[str, str]
+
+
+class OutputFileEntry(BaseModel):
+    """One subject's preprocessed outputs: a single HR file + all LR variants."""
+    hr: Optional[str] = None
+    lr_variants: Optional[LRVariants] = None
 
 
 class JobBase(BaseModel):
@@ -26,7 +39,9 @@ class JobResponse(BaseModel):
     job_type: str
     error_message: Optional[str] = None
     input_files: Optional[List[str]] = None
-    output_files: Optional[List[Dict[str, str]]] = None
+    # output_files holds a list of OutputFileEntry dicts
+    # { "hr": "/api/files/...", "lr_variants": { "thick_3mm": "...", ... } }
+    output_files: Optional[List[Dict[str, Any]]] = None
     lr_file_url: Optional[str] = None
     hr_file_url: Optional[str] = None
     metrics: Optional[Dict[str, float]] = None
@@ -66,7 +81,7 @@ class JobUpdate(BaseModel):
     status: Optional[JobStatus] = None
     progress: Optional[int] = None
     error_message: Optional[str] = None
-    output_files: Optional[List[Dict[str, str]]] = None
+    output_files: Optional[List[Dict[str, Any]]] = None
     lr_file_url: Optional[str] = None
     hr_file_url: Optional[str] = None
     metrics: Optional[Dict[str, float]] = None

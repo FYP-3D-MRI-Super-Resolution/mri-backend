@@ -305,6 +305,160 @@
       ]
     },
     {
+      "name": "DICOM Viewer",
+      "description": "NIfTI → DICOM conversion and slice streaming endpoints used by the MRI viewer.",
+      "item": [
+        {
+          "name": "Get DICOM Series Info (HR)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('num_slices', jsonData.num_slices);",
+                  "    pm.environment.set('num_slices', jsonData.num_slices);",
+                  "    console.log('num_slices:', jsonData.num_slices);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/dicom/{{job_id}}/HR/{{hr_filename}}/info",
+              "host": ["{{base_url}}"],
+              "path": ["api", "dicom", "{{job_id}}", "HR", "{{hr_filename}}", "info"]
+            },
+            "description": "Triggers NIfTI → DICOM conversion for the HR file and returns { num_slices, study_uid, series_uid }.\nFirst call is slow (conversion); subsequent calls are instant (cached)."
+          },
+          "response": []
+        },
+        {
+          "name": "Get DICOM Series Info (LR)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/dicom/{{job_id}}/LR/{{lr_filename}}/info",
+              "host": ["{{base_url}}"],
+              "path": ["api", "dicom", "{{job_id}}", "LR", "{{lr_filename}}", "info"]
+            },
+            "description": "Same as HR info but for the LR variant file."
+          },
+          "response": []
+        },
+        {
+          "name": "Get DICOM Slice (HR, slice 0)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/dicom/{{job_id}}/HR/{{hr_filename}}/slice/0",
+              "host": ["{{base_url}}"],
+              "path": ["api", "dicom", "{{job_id}}", "HR", "{{hr_filename}}", "slice", "0"]
+            },
+            "description": "Returns a single DICOM slice as application/dicom bytes. Change the last path segment for different slice indices (0 … num_slices-1)."
+          },
+          "response": []
+        },
+        {
+          "name": "Get DICOM Slice (LR, slice 0)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/dicom/{{job_id}}/LR/{{lr_filename}}/slice/0",
+              "host": ["{{base_url}}"],
+              "path": ["api", "dicom", "{{job_id}}", "LR", "{{lr_filename}}", "slice", "0"]
+            },
+            "description": "Same as HR slice, but for the LR variant file."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "File Downloads",
+      "description": "Authenticated download endpoints for NIfTI output files and pipeline logs.",
+      "item": [
+        {
+          "name": "Download HR NIfTI",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/download/{{job_id}}/HR/{{hr_filename}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "download", "{{job_id}}", "HR", "{{hr_filename}}"]
+            },
+            "description": "Download the super-resolution (HR) NIfTI output file."
+          },
+          "response": []
+        },
+        {
+          "name": "Download LR NIfTI",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/download/{{job_id}}/LR/{{lr_filename}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "download", "{{job_id}}", "LR", "{{lr_filename}}"]
+            },
+            "description": "Download the low-resolution (LR) NIfTI variant file."
+          },
+          "response": []
+        },
+        {
+          "name": "Download Pipeline Log",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/download/{{job_id}}/log",
+              "host": ["{{base_url}}"],
+              "path": ["api", "download", "{{job_id}}", "log"]
+            },
+            "description": "Download the full pipeline_0.log for a job."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
       "name": "Health Check",
       "item": [
         {
