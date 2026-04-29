@@ -12,10 +12,11 @@ from app.core.database import get_db
 from ..models import User
 from ..schemas import UploadResponse
 from app.core.auth import get_current_user
+from app.shared.guards.rbac import require_role
 from ..services.job_service import JobService
 from ..services.file_service import FileService
 from ..tasks.preprocess_tasks import preprocess_pipeline_task
-from app.core.constants import APIEndpoints, HTTPStatusMessages, JobConstants, EndpointDocs
+from app.core.constants import APIEndpoints, HTTPStatusMessages, JobConstants, EndpointDocs, UserRoles, JobScopes
 
 router = APIRouter(prefix=APIEndpoints.PREPROCESS_PREFIX, tags=["Preprocessing"])
 
@@ -29,7 +30,7 @@ router = APIRouter(prefix=APIEndpoints.PREPROCESS_PREFIX, tags=["Preprocessing"]
 async def upload_and_preprocess(
     files: List[UploadFile] = FastAPIFile(...),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_role(UserRoles.SUPER_ADMIN))
 ) -> UploadResponse:
     """
     Upload MRI files and start preprocessing.
@@ -53,7 +54,8 @@ async def upload_and_preprocess(
     # Create preprocessing job
     job = job_service.create_job(
         user=current_user,
-        job_type=JobConstants.JOB_TYPE_PREPROCESS
+        job_type=JobConstants.JOB_TYPE_PREPROCESS,
+        job_scope=JobScopes.DATASET,
     )
     
     try:

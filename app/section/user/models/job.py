@@ -17,6 +17,8 @@ class Job(Base):
     status = Column(Enum(JobStatus), default=JobStatus.PENDING, nullable=False)
     progress = Column(Integer, default=0)
     job_type = Column(String, nullable=False)  # 'preprocess' or 'inference'
+    # Scope separates dataset (admin) jobs from inference (user) jobs
+    job_scope = Column(String, nullable=True)
     error_message = Column(String, nullable=True)
     
     # File paths

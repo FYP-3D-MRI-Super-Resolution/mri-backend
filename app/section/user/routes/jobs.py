@@ -31,7 +31,8 @@ async def list_jobs(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     page: int = Query(1, ge=1, description="Page number (1-based)"),
-    size: int = Query(20, ge=1, le=100, description="Page size")
+    size: int = Query(20, ge=1, le=100, description="Page size"),
+    scope: str | None = Query(None, description="Optional job scope filter: dataset|inference|all")
 ) -> JobListResponse:
     """
     List all jobs for current user.
@@ -44,7 +45,7 @@ async def list_jobs(
         List of jobs
     """
     job_service = JobService(db)
-    result = job_service.get_user_jobs_paginated(current_user, page, size)
+    result = job_service.get_user_jobs_paginated(current_user, page, size, scope)
     return JobListResponse(**result)
 
 

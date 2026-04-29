@@ -23,6 +23,7 @@ class OutputFileEntry(BaseModel):
 class JobBase(BaseModel):
     """Base job schema."""
     job_type: str
+    job_scope: Optional[str] = None
 
 
 class JobCreate(JobBase):

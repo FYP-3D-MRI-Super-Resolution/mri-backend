@@ -57,6 +57,38 @@ class JobRepository(BaseRepository[Job]):
             .all()
         )
         return jobs, total
+
+    def get_by_user_id_and_scope_paginated(self, user_id: str, scope: str, offset: int, limit: int) -> tuple[List[Job], int]:
+        """
+        Get paginated jobs for a user filtered by scope.
+        """
+        base_query = self.db.query(Job).filter(Job.user_id == user_id, Job.job_scope == scope)
+        total = base_query.count()
+        jobs = (
+            base_query.order_by(Job.created_at.desc()).offset(offset).limit(limit).all()
+        )
+        return jobs, total
+
+    def get_by_scope_paginated(self, scope: str, offset: int, limit: int) -> tuple[List[Job], int]:
+        """
+        Get paginated jobs for a given scope (across users).
+        """
+        base_query = self.db.query(Job).filter(Job.job_scope == scope)
+        total = base_query.count()
+        jobs = (
+            base_query.order_by(Job.created_at.desc()).offset(offset).limit(limit).all()
+        )
+        return jobs, total
+
+    def get_all_paginated(self, offset: int, limit: int) -> tuple[List[Job], int]:
+        base_query = self.db.query(Job)
+        total = base_query.count()
+        jobs = base_query.order_by(Job.created_at.desc()).offset(offset).limit(limit).all()
+        return jobs, total
+
+    def get_by_id(self, job_id: str) -> Optional[Job]:
+        """Get job by ID without user restriction."""
+        return self.db.query(Job).filter(Job.id == job_id).first()
     
     def get_by_user_and_id(self, user_id: str, job_id: str) -> Optional[Job]:
         """
