@@ -30,7 +30,7 @@ router = APIRouter(prefix=APIEndpoints.PREPROCESS_PREFIX, tags=["Preprocessing"]
 async def upload_and_preprocess(
     files: List[UploadFile] = FastAPIFile(...),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(UserRoles.SUPER_ADMIN))
+    current_user: User = Depends(get_current_user)
 ) -> UploadResponse:
     """
     Upload MRI files and start preprocessing.
