@@ -9,6 +9,7 @@ from app.section.user.repositories.user_repository import UserRepository
 from app.section.user.models import User
 from app.section.user.routes import auth, preprocess, jobs, inference, files
 from app.section.user.routes.files import dicom_router
+from app.section.admin.routes import dataset_preprocess as admin_dataset_preprocess
 from app.middleware import add_exception_handlers
 from app.core.constants import APIEndpoints, UserRoles
 from sqlalchemy import text
@@ -74,6 +75,7 @@ app.include_router(jobs.router, prefix=APIEndpoints.API_PREFIX)
 app.include_router(inference.router, prefix=APIEndpoints.API_PREFIX)
 app.include_router(files.router, prefix=APIEndpoints.API_PREFIX)
 app.include_router(dicom_router, prefix=APIEndpoints.API_PREFIX)
+app.include_router(admin_dataset_preprocess.router, prefix=APIEndpoints.API_PREFIX)
 
 # Mount static files for serving outputs
 if os.path.exists(settings.OUTPUT_DIR):
