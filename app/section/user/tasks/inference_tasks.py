@@ -23,7 +23,7 @@ import ants
 from celery import shared_task
 
 from app.core.config import settings
-from app.section.user.models import JobStatus
+from app.shared.models import JobStatus
 from app.shared.tasks.task_helpers import update_job_status, build_file_url
 
 logger = logging.getLogger(__name__)

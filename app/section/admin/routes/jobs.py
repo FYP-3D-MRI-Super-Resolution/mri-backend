@@ -23,8 +23,8 @@ from app.core.constants import (
 from app.shared.guards.rbac import require_role
 from app.shared.services.job_service import JobService
 from app.section.admin.tasks.preprocess_tasks import preprocess_pipeline_task
-from app.section.user.models import User
-from app.section.user.schemas import JobResponse, JobListResponse
+from app.shared.models import User
+from app.shared.schemas import JobResponse, JobListResponse
 from app.shared.utils.exceptions import InvalidJobStateException
 
 router = APIRouter(

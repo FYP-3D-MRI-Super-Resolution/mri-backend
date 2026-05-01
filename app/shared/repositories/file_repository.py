@@ -8,7 +8,7 @@ sections.  Extends BaseRepository with file-specific query methods.
 from typing import List
 from sqlalchemy.orm import Session
 
-from app.section.user.models import File
+from app.shared.models import File
 from app.shared.repositories.base_repository import BaseRepository
 
 

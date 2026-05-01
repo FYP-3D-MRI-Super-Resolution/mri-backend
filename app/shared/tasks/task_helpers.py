@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from app.core.database import SessionLocal
-from app.section.user.models import Job, JobStatus
+from app.shared.models import Job, JobStatus
 
 logger = logging.getLogger(__name__)
 

@@ -18,7 +18,7 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy.orm import Session
 from datetime import datetime
 
-from app.section.user.models import Job, JobStatus, User
+from app.shared.models import Job, JobStatus, User
 from app.shared.repositories.job_repository import JobRepository
 from app.core.constants import ErrorMessages, UserRoles, JobScopes
 from app.shared.utils.exceptions import (

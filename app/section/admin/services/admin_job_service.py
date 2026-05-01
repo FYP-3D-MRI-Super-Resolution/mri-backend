@@ -73,7 +73,7 @@ class AdminJobService(JobService):
             List of output-file dicts:
             ``[{"hr": "<url>", "lr_variants": {"suffix": "<url>", …}}, …]``
         """
-        from app.section.user.models import JobStatus  # noqa: PLC0415
+        from app.shared.models import JobStatus  # noqa: PLC0415
         from app.shared.utils.exceptions import InvalidJobStateException  # noqa: PLC0415
 
         job = self.job_repository.get_by_id(job_id)

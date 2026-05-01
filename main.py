@@ -21,7 +21,7 @@ from app.core.constants import APIEndpoints, UserRoles
 from app.middleware import add_exception_handlers
 
 # ── Model & repository imports (ensure SQLAlchemy sees all tables) ───────────
-from app.section.user.models import User  # noqa: F401
+from app.shared.models import User  # noqa: F401
 from app.section.user.repositories.user_repository import UserRepository
 
 # ── Route imports ─────────────────────────────────────────────────────────────

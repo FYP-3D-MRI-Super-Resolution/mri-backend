@@ -16,8 +16,8 @@ from typing import Any, Dict
 from app.core.database import get_db
 from app.core.auth import get_current_user
 from app.core.constants import APIEndpoints, EndpointDocs, ErrorMessages, JobConstants
-from app.section.user.models import User
-from app.section.user.schemas import JobResponse, JobListResponse
+from app.shared.models import User
+from app.shared.schemas import JobResponse, JobListResponse
 from app.section.user.tasks.inference_tasks import (
     preprocess_lr_for_inference_task,
     inference_task,

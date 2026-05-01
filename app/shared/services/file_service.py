@@ -12,7 +12,7 @@ from typing import List, Tuple
 from fastapi import UploadFile
 from sqlalchemy.orm import Session
 
-from app.section.user.models import File, User
+from app.shared.models import File, User
 from app.shared.repositories.file_repository import FileRepository
 from app.core.config import settings
 from app.core.constants import FileConstants, ErrorMessages

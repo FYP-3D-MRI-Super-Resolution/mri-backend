@@ -23,7 +23,7 @@ from pathlib import Path
 from celery import shared_task
 from app.core.config import settings
 from app.shared.tasks.task_helpers import update_job_status, build_file_url
-from app.section.user.models import JobStatus
+from app.shared.models import JobStatus
 
 logger = logging.getLogger(__name__)
 

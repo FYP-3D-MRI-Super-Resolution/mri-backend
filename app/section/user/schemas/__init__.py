@@ -1,26 +1,5 @@
-"""Pydantic schemas package."""
-
-from .user import UserBase, UserCreate, UserResponse, UserLogin, Token
-from .job import JobBase, JobCreate, JobResponse, JobUpdate, JobListResponse
-from .file import FileResponse
-from .common import UploadResponse, InferenceRequest
-
-__all__ = [
-    # User schemas
-    "UserBase",
-    "UserCreate",
-    "UserResponse",
-    "UserLogin",
-    "Token",
-    # Job schemas
-    "JobBase",
-    "JobCreate",
-    "JobResponse",
-    "JobListResponse",
-    "JobUpdate",
-    # File schemas
-    "FileResponse",
-    # Common schemas
-    "UploadResponse",
-    "InferenceRequest",
-]
+"""Shim module."""
+from app.shared.schemas.user import UserBase, UserCreate, UserResponse, UserLogin, Token
+from app.shared.schemas.job import JobBase, JobCreate, JobResponse, JobUpdate, JobListResponse
+from app.shared.schemas.file import FileResponse
+from app.shared.schemas.common import UploadResponse, InferenceRequest

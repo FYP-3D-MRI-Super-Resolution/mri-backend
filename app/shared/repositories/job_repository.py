@@ -8,7 +8,7 @@ Extends BaseRepository with job-specific query methods.
 from typing import List, Optional, Tuple
 from sqlalchemy.orm import Session
 
-from app.section.user.models import Job, JobStatus
+from app.shared.models import Job, JobStatus
 from app.shared.repositories.base_repository import BaseRepository
 
 
