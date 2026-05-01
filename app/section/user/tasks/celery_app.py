@@ -8,8 +8,8 @@ celery_app = Celery(
     broker=settings.CELERY_BROKER_URL,
     backend=settings.CELERY_RESULT_BACKEND,
     include=[
-        "app.tasks.preprocess_tasks",
-        "app.tasks.inference_tasks"
+        "app.section.user.tasks.preprocess_tasks",
+        "app.section.user.tasks.inference_tasks"
     ]
 )
 

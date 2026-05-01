@@ -51,6 +51,12 @@ class Settings(BaseSettings):
 
     # Processing
     MAX_CONCURRENT_JOBS: int = 2
+
+    # RBAC bootstrap
+    SUPER_ADMIN_ENABLED: bool = False
+    SUPER_ADMIN_EMAIL: str = ""
+    SUPER_ADMIN_PASSWORD: str = ""
+    SUPER_ADMIN_NAME: str = "superadmin"
     
     class Config:
         env_file = ".env"

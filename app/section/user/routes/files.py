@@ -9,9 +9,9 @@ from pathlib import Path
 
 from app.core.database import get_db
 from app.core.auth import get_current_user
-from app.models import Job, User
+from ..models import Job, User
 from app.core.config import settings
-from app.utils.nifti_to_dicom import convert_nifti_to_dicom, get_dicom_slice_path
+from app.shared.utils.nifti_to_dicom import convert_nifti_to_dicom, get_dicom_slice_path
 
 logger = logging.getLogger(__name__)
 

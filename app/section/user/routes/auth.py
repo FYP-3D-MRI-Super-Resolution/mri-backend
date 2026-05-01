@@ -8,10 +8,10 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.models import User
-from app.schemas import UserCreate, UserResponse, UserLogin, Token
+from ..models import User
+from ..schemas import UserCreate, UserResponse, UserLogin, Token
 from app.core.auth import get_current_user
-from app.services.auth_service import AuthService
+from ..services.auth_service import AuthService
 from app.core.constants import APIEndpoints, EndpointDocs
 
 router = APIRouter(prefix=APIEndpoints.AUTH_PREFIX, tags=["Authentication"])

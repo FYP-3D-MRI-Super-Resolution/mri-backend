@@ -18,6 +18,7 @@ class UserCreate(UserBase):
 class UserResponse(UserBase):
     """Schema for user response."""
     id: str
+    role: str
     created_at: datetime
     
     class Config:

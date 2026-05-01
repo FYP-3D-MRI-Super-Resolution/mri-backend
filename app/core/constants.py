@@ -110,6 +110,21 @@ class JobConstants:
     QUEUE_INFERENCE = "inference"
 
 
+class UserRoles:
+    """User role constants for RBAC."""
+
+    USER = "user"
+    SUPER_ADMIN = "super_admin"
+
+
+class JobScopes:
+    """Job scope constants for RBAC-aware listing and access."""
+
+    DATASET = "dataset"
+    INFERENCE = "inference"
+    ALL = "all"
+
+
 class ValidationRules:
     """Validation rule constants."""
     

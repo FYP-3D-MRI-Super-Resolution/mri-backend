@@ -3,7 +3,7 @@
 from typing import List
 from fastapi import UploadFile
 from app.core.constants import FileConstants
-from app.utils.exceptions import InvalidFileTypeException
+from app.shared.utils.exceptions import InvalidFileTypeException
 
 
 class FileValidator:
@@ -52,7 +52,7 @@ class FileValidator:
         Raises:
             FileTooLargeException: If file size exceeds limit
         """
-        from app.utils.exceptions import FileTooLargeException
+        from app.shared.utils.exceptions import FileTooLargeException
         
         if file_size > max_size:
             raise FileTooLargeException(filename, max_size)

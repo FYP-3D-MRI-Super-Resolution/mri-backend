@@ -2,8 +2,8 @@
 
 from typing import List, Optional
 from sqlalchemy.orm import Session
-from app.models import File
-from app.repositories.base_repository import BaseRepository
+from ..models import File
+from .base_repository import BaseRepository
 
 
 class FileRepository(BaseRepository[File]):

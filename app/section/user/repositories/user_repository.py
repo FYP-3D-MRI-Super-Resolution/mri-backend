@@ -2,8 +2,8 @@
 
 from typing import Optional
 from sqlalchemy.orm import Session
-from app.models import User
-from app.repositories.base_repository import BaseRepository
+from ..models import User
+from .base_repository import BaseRepository
 
 
 class UserRepository(BaseRepository[User]):

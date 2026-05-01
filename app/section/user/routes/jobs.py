@@ -9,13 +9,13 @@ from sqlalchemy.orm import Session
 from typing import List, Dict, Any
 
 from app.core.database import get_db
-from app.models import User, JobStatus
-from app.schemas import JobResponse, JobListResponse
+from ..models import User, JobStatus
+from ..schemas import JobResponse, JobListResponse
 from app.core.auth import get_current_user
-from app.services.job_service import JobService
-from app.tasks.preprocess_tasks import preprocess_pipeline_task
-from app.tasks.inference_tasks import inference_task
-from app.utils.exceptions import InvalidJobStateException
+from ..services.job_service import JobService
+from ..tasks.preprocess_tasks import preprocess_pipeline_task
+from ..tasks.inference_tasks import inference_task
+from app.shared.utils.exceptions import InvalidJobStateException
 from app.core.constants import APIEndpoints, ErrorMessages, EndpointDocs
 
 router = APIRouter(prefix=APIEndpoints.JOBS_PREFIX, tags=["Jobs"])
@@ -31,7 +31,8 @@ async def list_jobs(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     page: int = Query(1, ge=1, description="Page number (1-based)"),
-    size: int = Query(20, ge=1, le=100, description="Page size")
+    size: int = Query(20, ge=1, le=100, description="Page size"),
+    scope: str | None = Query(None, description="Optional job scope filter: dataset|inference|all")
 ) -> JobListResponse:
     """
     List all jobs for current user.
@@ -44,7 +45,7 @@ async def list_jobs(
         List of jobs
     """
     job_service = JobService(db)
-    result = job_service.get_user_jobs_paginated(current_user, page, size)
+    result = job_service.get_user_jobs_paginated(current_user, page, size, scope)
     return JobListResponse(**result)
 
 

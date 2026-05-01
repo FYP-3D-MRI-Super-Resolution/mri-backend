@@ -6,11 +6,11 @@ import math
 from sqlalchemy.orm import Session
 from datetime import datetime
 
-from app.models import Job, JobStatus, User
-from app.repositories.job_repository import JobRepository
-from app.services.file_service import FileService
-from app.core.constants import ErrorMessages
-from app.utils.exceptions import (
+from ..models import Job, JobStatus, User
+from ..repositories.job_repository import JobRepository
+from .file_service import FileService
+from app.core.constants import ErrorMessages, UserRoles, JobScopes
+from app.shared.utils.exceptions import (
     ResourceNotFoundException,
     ForbiddenException,
     InvalidJobStateException
@@ -38,7 +38,8 @@ class JobService:
         self,
         user: User,
         job_type: str,
-        input_files: Optional[List[str]] = None
+        input_files: Optional[List[str]] = None,
+        job_scope: Optional[str] = None
     ) -> Job:
         """
         Create a new job.
@@ -57,6 +58,7 @@ class JobService:
                 user_id=user.id,
                 status=JobStatus.PENDING,
                 job_type=job_type,
+                job_scope=job_scope,
                 progress=0,
                 input_files=input_files
             )
@@ -81,7 +83,7 @@ class JobService:
         except Exception as e:
             raise Exception(f"Failed to get jobs: {str(e)}")
 
-    def get_user_jobs_paginated(self, user: User, page: int, size: int) -> Dict[str, Any]:
+    def get_user_jobs_paginated(self, user: User, page: int, size: int, scope: Optional[str] = None) -> Dict[str, Any]:
         """
         Get paginated jobs for a user.
 
@@ -95,7 +97,23 @@ class JobService:
         """
         try:
             offset = (page - 1) * size
-            jobs, total = self.job_repository.get_by_user_id_paginated(user.id, offset, size)
+
+            # Role-aware job listing
+            if user.role == UserRoles.SUPER_ADMIN:
+                # Admins default to dataset scope unless explicit
+                if scope is None:
+                    scope = JobScopes.DATASET
+                if scope == JobScopes.ALL:
+                    jobs, total = self.job_repository.get_all_paginated(offset, size)
+                else:
+                    jobs, total = self.job_repository.get_by_scope_paginated(scope, offset, size)
+            else:
+                # Regular users default to inference scope
+                if scope is None:
+                    scope = JobScopes.INFERENCE
+                if scope == JobScopes.DATASET:
+                    raise ForbiddenException("Access to dataset jobs is restricted")
+                jobs, total = self.job_repository.get_by_user_id_and_scope_paginated(user.id, scope, offset, size)
             pages = math.ceil(total / size) if size > 0 else 0
             return {
                 "items": jobs,
@@ -123,12 +141,18 @@ class JobService:
             ForbiddenException: If user doesn't own the job
         """
         try:
-            job = self.job_repository.get_by_user_and_id(user.id, job_id)
-            
+            # Allow super_admin to access dataset jobs across users
+            job = self.job_repository.get_by_id(job_id)
             if not job:
                 raise ResourceNotFoundException("Job", job_id)
-            
-            return job
+
+            if job.user_id == user.id:
+                return job
+
+            if user.role == UserRoles.SUPER_ADMIN and job.job_scope == JobScopes.DATASET:
+                return job
+
+            raise ForbiddenException("You do not have access to this job")
         
         except ResourceNotFoundException:
             raise

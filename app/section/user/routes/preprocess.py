@@ -9,13 +9,14 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from app.core.database import get_db
-from app.models import User
-from app.schemas import UploadResponse
+from ..models import User
+from ..schemas import UploadResponse
 from app.core.auth import get_current_user
-from app.services.job_service import JobService
-from app.services.file_service import FileService
-from app.tasks.preprocess_tasks import preprocess_pipeline_task
-from app.core.constants import APIEndpoints, HTTPStatusMessages, JobConstants, EndpointDocs
+from app.shared.guards.rbac import require_role
+from ..services.job_service import JobService
+from ..services.file_service import FileService
+from ..tasks.preprocess_tasks import preprocess_pipeline_task
+from app.core.constants import APIEndpoints, HTTPStatusMessages, JobConstants, EndpointDocs, UserRoles, JobScopes
 
 router = APIRouter(prefix=APIEndpoints.PREPROCESS_PREFIX, tags=["Preprocessing"])
 
@@ -53,7 +54,8 @@ async def upload_and_preprocess(
     # Create preprocessing job
     job = job_service.create_job(
         user=current_user,
-        job_type=JobConstants.JOB_TYPE_PREPROCESS
+        job_type=JobConstants.JOB_TYPE_PREPROCESS,
+        job_scope=JobScopes.DATASET,
     )
     
     try:

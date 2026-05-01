@@ -4,6 +4,7 @@ from sqlalchemy import Column, String, DateTime
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.core.database import Base
+from app.core.constants import UserRoles
 
 
 class User(Base):
@@ -16,6 +17,8 @@ class User(Base):
     hashed_password = Column(String, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    # Role for RBAC
+    role = Column(String, nullable=False, server_default=UserRoles.USER)
     
     # Relationships
     jobs = relationship("Job", back_populates="user")

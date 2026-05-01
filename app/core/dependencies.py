@@ -4,9 +4,9 @@ from fastapi import Depends
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.services.auth_service import AuthService
-from app.services.job_service import JobService
-from app.services.file_service import FileService
+from app.section.user.services.auth_service import AuthService
+from app.section.user.services.job_service import JobService
+from app.section.user.services.file_service import FileService
 
 
 def get_auth_service(db: Session = Depends(get_db)) -> AuthService:

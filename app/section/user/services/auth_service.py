@@ -4,12 +4,12 @@ import uuid
 from sqlalchemy.orm import Session
 from typing import Tuple
 
-from app.models import User
-from app.schemas import UserCreate, UserLogin
+from ..models import User
+from ..schemas import UserCreate, UserLogin
 from app.core.auth import get_password_hash, verify_password, create_access_token
-from app.repositories.user_repository import UserRepository
-from app.core.constants import ErrorMessages
-from app.utils.exceptions import (
+from ..repositories.user_repository import UserRepository
+from app.core.constants import ErrorMessages, UserRoles
+from app.shared.utils.exceptions import (
     ResourceAlreadyExistsException,
     UnauthorizedException,
     ResourceNotFoundException
@@ -57,7 +57,8 @@ class AuthService:
                 id=str(uuid.uuid4()),
                 email=user_data.email,
                 name=user_data.name,
-                hashed_password=get_password_hash(user_data.password)
+                hashed_password=get_password_hash(user_data.password),
+                role=UserRoles.USER
             )
             
             return self.user_repository.create(user)
@@ -92,7 +93,8 @@ class AuthService:
                 raise UnauthorizedException(ErrorMessages.INVALID_CREDENTIALS)
             
             # Generate access token
-            access_token = create_access_token(data={"sub": user.id})
+            # Include role in token for frontend convenience (DB is source of truth)
+            access_token = create_access_token(data={"sub": user.id, "role": user.role})
             
             return user, access_token
         

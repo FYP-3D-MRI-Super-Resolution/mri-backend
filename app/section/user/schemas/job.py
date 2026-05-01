@@ -4,7 +4,7 @@ from pydantic import BaseModel, computed_field
 from pydantic import ConfigDict
 from typing import Optional, List, Dict, Any
 from datetime import datetime
-from app.models import JobStatus
+from ..models import JobStatus
 
 
 # ---------------------------------------------------------------------------
@@ -23,6 +23,7 @@ class OutputFileEntry(BaseModel):
 class JobBase(BaseModel):
     """Base job schema."""
     job_type: str
+    job_scope: Optional[str] = None
 
 
 class JobCreate(JobBase):

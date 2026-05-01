@@ -9,13 +9,13 @@ from sqlalchemy.orm import Session
 from typing import Dict, Any
 
 from app.core.database import get_db
-from app.models import User
-from app.schemas import InferenceRequest, UploadResponse
+from ..models import User
+from ..schemas import InferenceRequest, UploadResponse
 from app.core.auth import get_current_user
-from app.services.job_service import JobService
-from app.services.file_service import FileService
-from app.tasks.inference_tasks import inference_task, preprocess_lr_for_inference_task
-from app.core.constants import APIEndpoints, HTTPStatusMessages, JobConstants, EndpointDocs
+from ..services.job_service import JobService
+from ..services.file_service import FileService
+from ..tasks.inference_tasks import inference_task, preprocess_lr_for_inference_task
+from app.core.constants import APIEndpoints, HTTPStatusMessages, JobConstants, EndpointDocs, JobScopes
 
 router = APIRouter(prefix=APIEndpoints.INFERENCE_PREFIX, tags=["Inference"])
 
@@ -39,6 +39,7 @@ async def upload_lr_for_inference_preprocess(
     job = job_service.create_job(
         user=current_user,
         job_type=JobConstants.JOB_TYPE_INFERENCE,
+        job_scope=JobScopes.INFERENCE,
     )
 
     try:
@@ -108,7 +109,8 @@ async def run_inference(
     inference_job = job_service.create_job(
         user=current_user,
         job_type=JobConstants.JOB_TYPE_INFERENCE,
-        input_files=lr_job.output_files
+        input_files=lr_job.output_files,
+        job_scope=JobScopes.INFERENCE,
     )
     
     # Trigger Celery inference task

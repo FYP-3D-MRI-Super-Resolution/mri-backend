@@ -5,7 +5,7 @@ from typing import Optional
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.core.database import Base
-from app.models.base import JobStatus
+from .base import JobStatus
 
 
 class Job(Base):
@@ -17,6 +17,8 @@ class Job(Base):
     status = Column(Enum(JobStatus), default=JobStatus.PENDING, nullable=False)
     progress = Column(Integer, default=0)
     job_type = Column(String, nullable=False)  # 'preprocess' or 'inference'
+    # Scope separates dataset (admin) jobs from inference (user) jobs
+    job_scope = Column(String, nullable=True)
     error_message = Column(String, nullable=True)
     
     # File paths

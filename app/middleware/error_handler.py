@@ -5,7 +5,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.utils.exceptions import AppException
+from app.shared.utils.exceptions import AppException
 
 # Configure logger
 logger = logging.getLogger(__name__)
