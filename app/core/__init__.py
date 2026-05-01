@@ -1,4 +1,15 @@
-"""Core package - Infrastructure and configuration."""
+"""Core package — Infrastructure and configuration.
+
+NOTE: get_auth_service / get_job_service / get_file_service are intentionally
+NOT imported here to avoid the circular import:
+
+  core/__init__ → dependencies → user/services → shared/repositories
+               → core/database → core/__init__  (still loading!)
+
+Import those DI helpers directly when you need them:
+
+  from app.core.dependencies import get_job_service
+"""
 
 from .auth import (
     verify_password,
@@ -6,11 +17,10 @@ from .auth import (
     create_access_token,
     decode_token,
     get_current_user,
-    security
+    security,
 )
 from .config import settings
 from .database import Base, engine, SessionLocal, get_db
-from .dependencies import get_auth_service, get_job_service, get_file_service
 from .constants import (
     APIEndpoints,
     HTTPStatusMessages,
@@ -18,7 +28,7 @@ from .constants import (
     FileConstants,
     JobConstants,
     ValidationRules,
-    EndpointDocs
+    EndpointDocs,
 )
 
 __all__ = [
@@ -36,10 +46,6 @@ __all__ = [
     "engine",
     "SessionLocal",
     "get_db",
-    # Dependencies
-    "get_auth_service",
-    "get_job_service",
-    "get_file_service",
     # Constants
     "APIEndpoints",
     "HTTPStatusMessages",

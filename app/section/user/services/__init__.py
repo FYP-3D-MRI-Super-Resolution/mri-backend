@@ -1,11 +1,18 @@
-"""Business logic layer (services)."""
+"""
+User section services package.
 
-from .auth_service import AuthService
-from .job_service import JobService
-from .file_service import FileService
+AuthService remains here as it is user-section-specific.
 
-__all__ = [
-    "AuthService",
-    "JobService",
-    "FileService",
-]
+JobService and FileService have been moved to app/shared/services/.
+Import them directly from their canonical paths to avoid circular
+import issues:
+
+    from app.shared.services.job_service import JobService
+    from app.shared.services.file_service import FileService
+    from app.section.user.services.auth_service import AuthService
+"""
+
+# Intentionally not doing eager imports — see module docstring.
+from .auth_service import AuthService  # noqa: F401
+
+__all__ = ["AuthService"]

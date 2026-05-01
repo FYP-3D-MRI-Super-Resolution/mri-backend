@@ -12,8 +12,8 @@ from app.core.database import get_db
 from ..models import User
 from ..schemas import InferenceRequest, UploadResponse
 from app.core.auth import get_current_user
-from ..services.job_service import JobService
-from ..services.file_service import FileService
+from app.shared.services.job_service import JobService
+from app.shared.services.file_service import FileService
 from ..tasks.inference_tasks import inference_task, preprocess_lr_for_inference_task
 from app.core.constants import APIEndpoints, HTTPStatusMessages, JobConstants, EndpointDocs, JobScopes
 

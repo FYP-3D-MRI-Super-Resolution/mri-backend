@@ -1,6 +1,12 @@
 """
 Admin dataset preprocessing routes (Controller layer).
+
 Handles HTTP requests for admin-only dataset preprocessing uploads.
+Only SUPER_ADMIN users may call these endpoints (enforced via RBAC guard).
+
+Follows SOLID principles:
+  - Single Responsibility: routing and request parsing only.
+  - All business logic is delegated to the shared service layer.
 """
 
 from fastapi import APIRouter, Depends, UploadFile, File as FastAPIFile
@@ -8,16 +14,25 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from app.core.database import get_db
-from app.core.auth import get_current_user
-from app.core.constants import APIEndpoints, HTTPStatusMessages, JobConstants, EndpointDocs, UserRoles, JobScopes
+from app.core.constants import (
+    APIEndpoints,
+    HTTPStatusMessages,
+    JobConstants,
+    EndpointDocs,
+    UserRoles,
+    JobScopes,
+)
 from app.shared.guards.rbac import require_role
+from app.shared.services.job_service import JobService
+from app.shared.services.file_service import FileService
+from app.section.admin.tasks.preprocess_tasks import preprocess_pipeline_task
 from app.section.user.models import User
 from app.section.user.schemas import UploadResponse
-from app.section.user.services.job_service import JobService
-from app.section.user.services.file_service import FileService
-from app.section.user.tasks.preprocess_tasks import preprocess_pipeline_task
 
-router = APIRouter(prefix="/admin/dataset-preprocess", tags=["Admin Dataset Preprocessing"])
+router = APIRouter(
+    prefix="/admin/dataset-preprocess",
+    tags=["Admin — Dataset Preprocessing"],
+)
 
 
 @router.post(
@@ -31,7 +46,24 @@ async def upload_dataset_for_preprocessing(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(UserRoles.SUPER_ADMIN)),
 ) -> UploadResponse:
-    """Upload MRI files and start admin dataset preprocessing."""
+    """
+    Upload one or more NIfTI files and start the admin dataset
+    preprocessing pipeline.
+
+    Access: SUPER_ADMIN only.
+
+    Args:
+        files:        NIfTI files (.nii / .nii.gz) to preprocess.
+        db:           Database session (injected).
+        current_user: Authenticated SUPER_ADMIN user.
+
+    Returns:
+        UploadResponse with job_id and status message.
+
+    Raises:
+        ValidationException:   No files provided or invalid file types.
+        FileTooLargeException: File exceeds the size limit.
+    """
     job_service = JobService(db)
     file_service = FileService(db)
 
@@ -60,7 +92,10 @@ async def upload_dataset_for_preprocessing(
 
         return UploadResponse(
             job_id=job.id,
-            message=f"{HTTPStatusMessages.UPLOAD_SUCCESS}. {HTTPStatusMessages.PREPROCESSING_STARTED}.",
+            message=(
+                f"{HTTPStatusMessages.UPLOAD_SUCCESS}. "
+                f"{HTTPStatusMessages.PREPROCESSING_STARTED}."
+            ),
             files_uploaded=len(files),
         )
 
