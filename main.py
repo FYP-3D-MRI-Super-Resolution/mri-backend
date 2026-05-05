@@ -36,6 +36,7 @@ from app.section.user.routes.files import dicom_router
 # Admin-facing routes
 from app.section.admin.routes import dataset_preprocess as admin_dataset_preprocess
 from app.section.admin.routes import jobs as admin_jobs
+from app.section.admin.routes import dashboard as admin_dashboard
 
 # ── Database bootstrap ────────────────────────────────────────────────────────
 Base.metadata.create_all(bind=engine)
@@ -107,6 +108,9 @@ app.include_router(dicom_router,       prefix=_api)   # GET /api/dicom/...
 app.include_router(
     admin_dataset_preprocess.router, prefix=_api
 )  # POST /api/admin/dataset-preprocess/upload
+app.include_router(
+    admin_dashboard.router, prefix=_api
+)  # GET /api/admin/stats, /api/admin/jobs/active/count, etc.
 app.include_router(
     admin_jobs.router, prefix=_api
 )  # GET/DELETE/POST /api/admin/jobs/...
