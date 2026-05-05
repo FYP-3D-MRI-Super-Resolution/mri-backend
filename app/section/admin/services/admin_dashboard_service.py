@@ -8,6 +8,8 @@ delegate all data fetching / computation here.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import os
+import time
 from typing import Any
 
 from sqlalchemy import func, text
@@ -26,14 +28,88 @@ class AdminDashboardService:
     def __init__(self, db: Session) -> None:
         self.db = db
 
-    def _resource_metrics(self) -> tuple[bool, dict[str, float | int]]:
-        if psutil is None:
-            return True, {"cpu_usage": 0, "memory_usage": 0}
+    def _read_proc_cpu_snapshot(self) -> tuple[float, float] | None:
+        try:
+            with open("/proc/stat", "r", encoding="utf-8") as stat_file:
+                first_line = stat_file.readline().strip()
 
-        cpu_percent = psutil.cpu_percent(interval=0.1)
-        memory = psutil.virtual_memory()
-        resources_ok = cpu_percent < 80 and memory.percent < 85
-        return resources_ok, {"cpu_usage": cpu_percent, "memory_usage": memory.percent}
+            parts = first_line.split()
+            if len(parts) < 5 or parts[0] != "cpu":
+                return None
+
+            values = [float(part) for part in parts[1:]]
+            idle = values[3] + (values[4] if len(values) > 4 else 0.0)
+            total = sum(values)
+            return total, idle
+        except Exception:
+            return None
+
+    def _cpu_percent_from_proc(self) -> float | None:
+        first = self._read_proc_cpu_snapshot()
+        if first is None:
+            return None
+
+        time.sleep(0.1)
+
+        second = self._read_proc_cpu_snapshot()
+        if second is None:
+            return None
+
+        total_delta = second[0] - first[0]
+        idle_delta = second[1] - first[1]
+        if total_delta <= 0:
+            return None
+
+        usage = (1.0 - (idle_delta / total_delta)) * 100.0
+        return max(0.0, min(100.0, usage))
+
+    def _memory_from_proc(self) -> tuple[float, float, float] | None:
+        try:
+            info: dict[str, float] = {}
+            with open("/proc/meminfo", "r", encoding="utf-8") as meminfo_file:
+                for line in meminfo_file:
+                    if ":" not in line:
+                        continue
+                    key, raw_val = line.split(":", 1)
+                    parts = raw_val.strip().split()
+                    if not parts:
+                        continue
+                    info[key] = float(parts[0]) * 1024.0
+
+            total = info.get("MemTotal")
+            available = info.get("MemAvailable", info.get("MemFree"))
+            if total is None or available is None or total <= 0:
+                return None
+
+            used = total - available
+            usage_percent = (used / total) * 100.0
+            return usage_percent, total, available
+        except Exception:
+            return None
+
+    def _resource_metrics(self) -> tuple[bool, dict[str, float | int]]:
+        cpu_percent: float | None = None
+        memory_percent: float | None = None
+
+        if psutil is not None:
+            try:
+                cpu_percent = psutil.cpu_percent(interval=0.1)
+                memory_percent = psutil.virtual_memory().percent
+            except Exception:
+                cpu_percent = None
+                memory_percent = None
+
+        if cpu_percent is None:
+            cpu_percent = self._cpu_percent_from_proc()
+        if memory_percent is None:
+            proc_memory = self._memory_from_proc()
+            if proc_memory is not None:
+                memory_percent = proc_memory[0]
+
+        cpu_usage = cpu_percent if cpu_percent is not None else 0.0
+        memory_usage = memory_percent if memory_percent is not None else 0.0
+        resources_ok = cpu_usage < 80 and memory_usage < 85
+        return resources_ok, {"cpu_usage": cpu_usage, "memory_usage": memory_usage}
 
     def get_dashboard_stats(self) -> dict[str, Any]:
         total_users = self.db.query(func.count(User.id)).scalar() or 0
@@ -132,15 +208,26 @@ class AdminDashboardService:
     def get_system_metrics(self) -> dict[str, Any]:
         try:
             _resources_ok, resource_metrics = self._resource_metrics()
-            memory = None
+            memory_percent = 0.0
+            memory_total = 0.0
+            memory_available = 0.0
             cpu_count = 0
             if psutil is not None:
                 memory = psutil.virtual_memory()
+                memory_percent = memory.percent
+                memory_total = float(memory.total)
+                memory_available = float(memory.available)
                 cpu_count = psutil.cpu_count(logical=True) or 0
+            else:
+                proc_memory = self._memory_from_proc()
+                if proc_memory is not None:
+                    memory_percent, memory_total, memory_available = proc_memory
+                cpu_count = os.cpu_count() or 0
         except Exception:
-            cpu_percent = 0
             resource_metrics = {"cpu_usage": 0, "memory_usage": 0}
-            memory = None
+            memory_percent = 0.0
+            memory_total = 0.0
+            memory_available = 0.0
             cpu_count = 0
 
         total_users = self.db.query(func.count(User.id)).scalar() or 0
@@ -178,9 +265,9 @@ class AdminDashboardService:
                     "core_count": cpu_count,
                 },
                 "memory": {
-                    "usage_percent": memory.percent if memory else 0,
-                    "total_gb": round(memory.total / (1024**3), 2) if memory else 0,
-                    "available_gb": round(memory.available / (1024**3), 2) if memory else 0,
+                    "usage_percent": memory_percent,
+                    "total_gb": round(memory_total / (1024**3), 2) if memory_total else 0,
+                    "available_gb": round(memory_available / (1024**3), 2) if memory_available else 0,
                 },
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             },
