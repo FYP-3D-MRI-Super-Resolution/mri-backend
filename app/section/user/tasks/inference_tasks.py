@@ -441,13 +441,17 @@ def inference_task(self, job_id: str, input_files: list):
         if not output_files:
             raise RuntimeError("No output files were produced — check that input paths exist.")
 
-        primary_url = build_file_url(output_files[0], job_id)
+        formatted_output_files = [
+            {"hr": build_file_url(path, job_id), "lr_variants": {}}
+            for path in output_files
+        ]
+        primary_url = formatted_output_files[0]["hr"]
 
         update_job_status(
             job_id,
             JobStatus.COMPLETED,
             progress=100,
-            output_files=output_files,
+            output_files=formatted_output_files,
             hr_file_url=primary_url,
             metrics={
                 "z_factor": _SOUP_GAN_Z_FACTOR,
