@@ -26,7 +26,7 @@ class APIEndpoints:
     
     # Inference endpoints
     INFERENCE_PREFIX = "/infer"
-    INFERENCE_RUN = ""
+    INFERENCE_RUN = "/sr"
     INFERENCE_PREPROCESS_UPLOAD = "/preprocess-upload"
 
 

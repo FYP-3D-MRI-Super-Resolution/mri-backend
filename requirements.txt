@@ -31,3 +31,7 @@ tqdm
 fire
 matplotlib
 HD-BET
+# SOUP-GAN super-resolution (KevinSR)
+# Install with: pip install KevinSR==0.1.20 --no-deps
+# (KevinSR declares an obsolete tensorflow-gpu dep; install TF separately first)
+KevinSR==0.1.20

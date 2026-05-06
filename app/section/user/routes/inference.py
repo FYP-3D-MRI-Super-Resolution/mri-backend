@@ -62,7 +62,7 @@ async def upload_lr_for_inference_preprocess(
 
         return UploadResponse(
             job_id=job.id,
-            message=f"{HTTPStatusMessages.UPLOAD_SUCCESS}. {HTTPStatusMessages.PREPROCESSING_STARTED}.",
+            message=f"{HTTPStatusMessages.UPLOAD_SUCCESS}. Preprocessing started; SOUP-GAN inference will trigger automatically upon completion.",
             files_uploaded=1,
         )
 
