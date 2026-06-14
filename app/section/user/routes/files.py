@@ -1,7 +1,7 @@
 """Authenticated file download and DICOM conversion endpoints for NIfTI outputs."""
 
 import logging
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from sqlalchemy.orm import Session
 import os
@@ -11,7 +11,12 @@ from app.core.database import get_db
 from app.core.auth import get_current_user
 from ..models import Job, User
 from app.core.config import settings
-from app.shared.utils.nifti_to_dicom import convert_nifti_to_dicom, get_dicom_slice_path
+from app.shared.utils.nifti_to_dicom import (
+    convert_nifti_to_dicom,
+    get_dicom_slice_path,
+    get_dicom_cache_key,
+    build_slice_urls,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -109,6 +114,7 @@ async def get_dicom_info(
     job_id: str,
     variant: str,
     filename: str,
+    request: Request,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -117,7 +123,18 @@ async def get_dicom_info(
     Convert a NIfTI output → DICOM series (cached) and return metadata.
 
     Returns JSON:
-      { "num_slices": N, "study_uid": "...", "series_uid": "..." }
+      {
+        "num_slices": N,
+        "study_uid": "...",
+        "series_uid": "...",
+        "cache_key": "...",
+        "slice_urls": ["/api/files/_dicom_cache/.../slice_0000.dcm", ...],
+        "image_ids": ["wadouri:http://host/api/files/_dicom_cache/.../slice_0000.dcm", ...]
+      }
+
+    Use ``image_ids`` (or ``slice_urls`` with your API base URL) for Cornerstone3D.
+    The authenticated ``/api/dicom/.../slice/{index}`` route exists for manual
+    downloads, but the viewer cannot send Bearer tokens to wadouri loaders.
     """
     job = (
         db.query(Job)
@@ -152,10 +169,17 @@ async def get_dicom_info(
         "[DICOM INFO] Conversion OK in %.1fs — num_slices=%d study_uid=%s series_uid=%s",
         _time.monotonic()-t0, num_slices, study_uid, series_uid,
     )
+    cache_key = get_dicom_cache_key(str(nifti_path))
+    slice_urls = build_slice_urls(cache_key, num_slices)
+    base_url = str(request.base_url).rstrip("/")
+    image_ids = [f"wadouri:{base_url}{url}" for url in slice_urls]
     return JSONResponse({
         "num_slices": num_slices,
         "study_uid": study_uid,
         "series_uid": series_uid,
+        "cache_key": cache_key,
+        "slice_urls": slice_urls,
+        "image_ids": image_ids,
     })
 
 

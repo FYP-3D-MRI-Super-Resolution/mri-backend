@@ -11,7 +11,7 @@ import numpy as np
 import nibabel as nib
 import pydicom
 from pydicom.dataset import Dataset, FileDataset, FileMetaDataset
-from pydicom.uid import generate_uid, ExplicitVRLittleEndian
+from pydicom.uid import generate_uid, ExplicitVRLittleEndian, PYDICOM_IMPLEMENTATION_UID
 
 logger = logging.getLogger(__name__)
 
@@ -44,9 +44,12 @@ def _build_dicom_slice(
 ) -> bytes:
     """Build a single DICOM slice and return its bytes."""
     file_meta = FileMetaDataset()
+    file_meta.FileMetaInformationVersion = b"\x00\x01"
     file_meta.MediaStorageSOPClassUID = MR_IMAGE_STORAGE
     file_meta.MediaStorageSOPInstanceUID = instance_uid
     file_meta.TransferSyntaxUID = ExplicitVRLittleEndian
+    file_meta.ImplementationClassUID = PYDICOM_IMPLEMENTATION_UID
+    file_meta.ImplementationVersionName = "PYDICOM"
 
     ds = FileDataset(None, {}, file_meta=file_meta, preamble=b"\x00" * 128)
     ds.is_implicit_VR = False
@@ -94,6 +97,10 @@ def _build_dicom_slice(
     ds.BitsStored = 16
     ds.HighBit = 15
     ds.PixelRepresentation = 0  # unsigned
+    ds.WindowCenter = 32768
+    ds.WindowWidth = 65536
+    ds.RescaleIntercept = 0
+    ds.RescaleSlope = 1
 
     # Ensure C-contiguous row-major layout (DICOM expects row-major)
     pixel_array = np.ascontiguousarray(slice_data)
@@ -125,7 +132,7 @@ def convert_nifti_to_dicom(
     cache_path = Path(cache_dir)
 
     # Derive a stable cache key from the file path so we don't re-convert
-    cache_key = hashlib.md5(nifti_path.encode()).hexdigest()
+    cache_key = get_dicom_cache_key(nifti_path)
     slice_dir = cache_path / cache_key
 
     # Check if already converted
@@ -191,7 +198,29 @@ def convert_nifti_to_dicom(
     return num_slices, study_uid, series_uid
 
 
+# Bump when generated DICOM tags change so cached slices are rebuilt.
+DICOM_CACHE_VERSION = "2"
+
+
+def get_dicom_cache_key(nifti_path: str) -> str:
+    """Return the stable cache key for a NIfTI source file."""
+    return hashlib.md5(f"{DICOM_CACHE_VERSION}:{nifti_path}".encode()).hexdigest()
+
+
 def get_dicom_slice_path(cache_dir: str, nifti_path: str, slice_index: int) -> Path:
     """Return the cached DICOM slice path for a given NIfTI file and slice index."""
-    cache_key = hashlib.md5(str(nifti_path).encode()).hexdigest()
+    cache_key = get_dicom_cache_key(nifti_path)
     return Path(cache_dir) / cache_key / f"slice_{slice_index:04d}.dcm"
+
+
+def build_slice_urls(cache_key: str, num_slices: int) -> List[str]:
+    """
+    Build public slice URLs served by the unauthenticated /api/files static mount.
+
+    Cornerstone3D's wadouri loader cannot attach Authorization headers, so the
+    viewer must load slices from these public URLs (not /api/dicom/.../slice/...).
+    """
+    return [
+        f"/api/files/_dicom_cache/{cache_key}/slice_{i:04d}.dcm"
+        for i in range(num_slices)
+    ]
