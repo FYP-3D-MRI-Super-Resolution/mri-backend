@@ -129,7 +129,7 @@ class InferencePreprocessPipelineManager:
 
         if self._pipeline is None:
 
-            config_path = Path(settings.PIPELINE_CONFIG).resolve()
+            config_path = PIPELINE_DIR / "configs" / "config.yaml"
 
             self._pipeline = MRIInferencePipeline(str(config_path))
 
