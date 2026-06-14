@@ -53,7 +53,7 @@ def _resolve_script_dir(checkpoint_dir: Path) -> Path:
         checkpoint_dir / "script",
         checkpoint_dir.parent / "script",
         Path("/app/model/Res-SRDiff/script"),
-        Path("../model/Res-SRDiff/script"),
+        Path(__file__).resolve().parents[4] / "Res-SRDiff" / "script",
     ]
     for candidate in candidates:
         resolved = candidate.resolve()
