@@ -3,7 +3,6 @@ paths:
   input_dir: "./data/raw"
   output_dir: "./data/processed"
   template_path: "./data/templates/mni152_template.nii.gz"
-  template_mask_path: "./data/templates/mni152_mask.nii.gz"
   intermediate_dir: "./data/processed/intermediate"
 
 pipeline_options:
