@@ -41,9 +41,11 @@ services:
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
+      PYTHONPATH: /app
     volumes:
       - ./data:/app/data
       - ./model:/app/model
+      - ./mri_sr_pipeline:/app/mri_sr_pipeline
     depends_on:
       db:
         condition: service_healthy
@@ -63,9 +65,11 @@ services:
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
+      PYTHONPATH: /app
     volumes:
       - ./data:/app/data
       - ./model:/app/model
+      - ./mri_sr_pipeline:/app/mri_sr_pipeline
     depends_on:
       db:
         condition: service_healthy
@@ -91,9 +95,11 @@ services:
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
       RESSSRDIFF_CHECKPOINT_DIR: /app/model/Res-SRDiff
+      PYTHONPATH: /app
     volumes:
       - ./data:/app/data
       - ./model:/app/model
+      - ./mri_sr_pipeline:/app/mri_sr_pipeline
     depends_on:
       db:
         condition: service_healthy

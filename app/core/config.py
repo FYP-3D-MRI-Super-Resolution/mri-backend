@@ -47,10 +47,10 @@ class Settings(BaseSettings):
     RESSSRDIFF_REGION: str = "prostate"
     RESSSRDIFF_MIN_GPU_VRAM_GB: float = 3.0
 
-    # mri_sr_pipeline integration
-    PIPELINE_DIR: str = "../mri_sr_pipeline"
-    PIPELINE_CONFIG: str = "../mri_sr_pipeline/configs/config.yaml"
-    TEMPLATE_DIR: str = "../mri_sr_pipeline/data/templates"
+    # mri_sr_pipeline integration (bundled inside mri-backend)
+    PIPELINE_DIR: str = "./mri_sr_pipeline"
+    PIPELINE_CONFIG: str = "./mri_sr_pipeline/configs/config.yaml"
+    TEMPLATE_DIR: str = "./mri_sr_pipeline/data/templates"
 
     # Processing
     MAX_CONCURRENT_JOBS: int = 2

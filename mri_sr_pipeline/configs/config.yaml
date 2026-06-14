@@ -1,0 +1,53 @@
+# configs/config.yaml
+paths:
+  input_dir: "./data/raw"
+  output_dir: "./data/processed"
+  template_path: "./data/templates/mni152_template.nii.gz"
+  template_mask_path: "./data/templates/mni152_mask.nii.gz"
+  intermediate_dir: "./data/processed/intermediate"
+
+pipeline_options:
+  save_intermediates: true
+
+preprocessing:
+  brain_extraction:
+    enabled: true
+    device: "cpu"  # Options: cuda, cpu, mps
+    disable_tta: true  # Disable test-time augmentation for faster processing
+    keep_mask: true  # Keep brain mask file for inspection
+  
+  bias_correction:
+    enabled: true
+    shrink_factor: 4
+    convergence: [50, 50, 50, 50]
+    tolerance: 1e-7
+  
+  registration:
+    type: "Affine" # Critical: Preserve patient morphology
+    interpolator: "linear"
+
+  normalization:
+    method: "whitestripe" # Options: whitestripe, zscore
+    modality: "T2"
+
+simulation:
+  thick_slices:
+    - 3.0  # Modern Standard: Common for 3T scanners (High Quality 2D)
+    - 5.0  # Classic Standard: Most common for T2/FLAIR and 1.5T scanners
+  inter_slice_gap:
+    - thickness: 3.0
+      gap: 0.0   # "Contiguous": High-quality clinical standard (No gap)
+    - thickness: 4.0
+      gap: 0.4   # "10% Gap": Common compromise to reduce cross-talk
+    - thickness: 5.0
+      gap: 0.5   # "10% Gap": Very common clinical setting
+    - thickness: 5.0
+      gap: 1.0   # "20% Gap": Legacy or robust protocol (prevents interference)
+  in_plane_resolution:
+    - 1  # Anisotropic (Real World): Keeps X/Y high-res, degrades only Z
+    - 2  # Low-Res (Fast Scan): Halves matrix size (e.g., 256->128)
+
+training:
+  patch_size: 
+  batch_size: 4
+  num_workers: 8

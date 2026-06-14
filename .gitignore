@@ -12,6 +12,10 @@ ENV/
 
 # Data directories
 data/
+# Allow bundled pipeline template (needed inside Docker image)
+!mri_sr_pipeline/data/
+!mri_sr_pipeline/data/templates/
+!mri_sr_pipeline/data/templates/mni152_template.nii.gz
 *.pth
 *.ckpt
 
