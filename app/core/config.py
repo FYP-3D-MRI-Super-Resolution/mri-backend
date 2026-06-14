@@ -43,7 +43,9 @@ class Settings(BaseSettings):
     
     # Model
     MODEL_PATH: str = "./models/best_model.pth"
-    LOHIRESGAN_MODEL_DIR: str = "./model/lohiresgan/Trained_Model_T1"
+    RESSSRDIFF_CHECKPOINT_DIR: str = "./model/Res-SRDiff"
+    RESSSRDIFF_REGION: str = "prostate"
+    RESSSRDIFF_MIN_GPU_VRAM_GB: float = 3.0
 
     # mri_sr_pipeline integration
     PIPELINE_DIR: str = "../mri_sr_pipeline"

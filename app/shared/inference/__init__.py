@@ -1,7 +1,8 @@
 """Shared inference adapters for super-resolution models."""
 
-from .lohiresgan_runner import run_lohiresgan
+from .ressrdiff_runner import run_ressrdiff, validate_checkpoint_dir
 
 __all__ = [
-    "run_lohiresgan",
+    "run_ressrdiff",
+    "validate_checkpoint_dir",
 ]

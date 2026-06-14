@@ -14,6 +14,11 @@ RUN apt-get update && apt-get install -y \
 # Copy requirements
 COPY requirements.txt .
 
+# PyTorch with CUDA 11.8 (compatible with host drivers reporting CUDA 11.7)
+RUN pip install --no-cache-dir --default-timeout=120 --retries=5 \
+    torch==2.5.1 torchvision==0.20.1 \
+    --index-url https://download.pytorch.org/whl/cu118
+
 # Install Python dependencies
 RUN pip install --no-cache-dir --default-timeout=120 --retries=5 -r requirements.txt
 
