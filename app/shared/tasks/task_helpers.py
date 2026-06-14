@@ -121,3 +121,39 @@ def build_file_url(abs_path: str, job_id: Optional[str] = None) -> str:
         filename = Path(abs_path).name
         prefix = f"{job_id}/" if job_id else ""
         return f"/api/files/{prefix}{filename}"
+
+
+def resolve_output_path(url_or_path: str) -> Path:
+    """
+    Convert an API file URL or absolute filesystem path to a local Path.
+
+    Examples::
+
+        /api/files/{job_id}/preprocessed/file.nii.gz
+            → {OUTPUT_DIR}/{job_id}/preprocessed/file.nii.gz
+
+    Args:
+        url_or_path: ``/api/files/...`` URL or existing filesystem path.
+
+    Returns:
+        Resolved absolute Path under OUTPUT_DIR when applicable.
+
+    Raises:
+        FileNotFoundError: If the resolved path does not exist on disk.
+    """
+    from app.core.config import settings
+
+    raw = url_or_path.strip()
+    path = Path(raw)
+
+    if raw.startswith("/api/files/"):
+        rel = raw[len("/api/files/") :]
+        path = Path(settings.OUTPUT_DIR).resolve() / rel
+    elif not path.is_absolute():
+        path = Path(settings.OUTPUT_DIR).resolve() / path
+
+    path = path.resolve()
+    if not path.is_file():
+        raise FileNotFoundError(f"Output file not found on disk: {path}")
+
+    return path

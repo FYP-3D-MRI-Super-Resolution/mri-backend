@@ -2,29 +2,23 @@
 User inference Celery tasks.
 
 Contains two tasks:
-  1. preprocess_lr_for_inference_task — runs MRIInferencePipeline on an
-     uploaded LR scan to prepare it for super-resolution.
-  2. inference_task — runs the SR model on a preprocessed LR scan.
-
-Design notes:
-  - update_job_status and build_file_url are imported from shared/tasks/
-    (previously duplicated here and in preprocess_tasks.py).
-  - ModelManager and InferencePreprocessPipelineManager use the Singleton
-    pattern to avoid reloading models on every task invocation.
+  1. preprocess_lr_for_inference_task — MRIInferencePipeline + LoHiResGAN SR
+  2. inference_task — manual LoHiResGAN retry on an existing preprocess job
 """
 
 import sys
-import os
 import logging
 from pathlib import Path
 
-import torch
-import ants
 from celery import shared_task
 
 from app.core.config import settings
 from app.shared.models import JobStatus
-from app.shared.tasks.task_helpers import update_job_status, build_file_url
+from app.shared.tasks.task_helpers import (
+    update_job_status,
+    build_file_url,
+    resolve_output_path,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -55,35 +49,6 @@ except ImportError as exc:
     PIPELINE_AVAILABLE = False
 
 
-# ---------------------------------------------------------------------------
-# Singletons — load models once per worker process
-# ---------------------------------------------------------------------------
-
-class ModelManager:
-    """Singleton that loads and caches the SR model."""
-
-    _instance = None
-    _model = None
-
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
-
-    def load_model(self):
-        """Load the super-resolution model (cached after first call)."""
-        if self._model is None:
-            model_path = settings.MODEL_PATH
-            if os.path.exists(model_path):
-                logger.info("Loading SR model from %s", model_path)
-                self._model = torch.load(model_path, map_location="cpu")
-                self._model.eval()
-            else:
-                logger.warning("SR model not found at %s", model_path)
-                self._model = None
-        return self._model
-
-
 class InferencePreprocessPipelineManager:
     """Singleton that loads and caches the MRIInferencePipeline."""
 
@@ -105,12 +70,53 @@ class InferencePreprocessPipelineManager:
         return self._pipeline
 
 
-model_manager = ModelManager()
 inference_preprocess_manager = InferencePreprocessPipelineManager()
 
 
+def _resolve_preprocessed_path(file_info) -> Path:
+    """Extract preprocessed NIfTI path from job output metadata."""
+    if isinstance(file_info, dict):
+        lr_variants = file_info.get("lr_variants") or {}
+        preprocessed_url = lr_variants.get("preprocessed")
+        if preprocessed_url:
+            return resolve_output_path(preprocessed_url)
+
+        hr_url = file_info.get("hr")
+        if hr_url:
+            return resolve_output_path(hr_url)
+
+        raise FileNotFoundError("No preprocessed file reference in job output metadata")
+
+    return resolve_output_path(str(file_info))
+
+
+def _run_sr_phase(job_id: str, preprocessed_path: Path, stem: str) -> tuple[str, str]:
+    """
+    Run LoHiResGAN on a preprocessed volume.
+
+    Returns:
+        Tuple of (preprocessed_url, sr_url).
+    """
+    sr_dir = Path(settings.OUTPUT_DIR).resolve() / job_id / "sr"
+    sr_dir.mkdir(parents=True, exist_ok=True)
+    sr_path = sr_dir / f"sr_{stem}.nii.gz"
+
+    # Lazy import: TensorFlow/OpenCV are only installed on worker_inference, not the API container.
+    from app.shared.inference.lohiresgan_runner import run_lohiresgan
+
+    run_lohiresgan(
+        input_path=str(preprocessed_path),
+        output_path=str(sr_path),
+        model_dir=settings.LOHIRESGAN_MODEL_DIR,
+    )
+
+    preprocessed_url = build_file_url(str(preprocessed_path), job_id)
+    sr_url = build_file_url(str(sr_path), job_id)
+    return preprocessed_url, sr_url
+
+
 # ---------------------------------------------------------------------------
-# Task: inference preprocessing
+# Task: inference preprocessing + LoHiResGAN (single user job)
 # ---------------------------------------------------------------------------
 
 @shared_task(
@@ -119,15 +125,12 @@ inference_preprocess_manager = InferencePreprocessPipelineManager()
 )
 def preprocess_lr_for_inference_task(self, job_id: str, input_file_path: str):
     """
-    Preprocess a single uploaded LR MRI scan using MRIInferencePipeline.
+    Preprocess an uploaded LR MRI scan, then run LoHiResGAN super-resolution.
 
-    Output path::
+    Outputs::
 
         data/outputs/{job_id}/preprocessed/preprocessed_{stem}.nii.gz
-
-    Args:
-        job_id:          User inference job primary key.
-        input_file_path: Absolute path to the uploaded LR NIfTI file.
+        data/outputs/{job_id}/sr/sr_{stem}.nii.gz
     """
     try:
         if not PIPELINE_AVAILABLE:
@@ -136,44 +139,55 @@ def preprocess_lr_for_inference_task(self, job_id: str, input_file_path: str):
         update_job_status(job_id, JobStatus.PROCESSING, progress=5)
         pipeline = inference_preprocess_manager.get_pipeline()
 
-        update_job_status(job_id, JobStatus.PROCESSING, progress=20)
-        output_dir = Path(settings.OUTPUT_DIR).resolve() / job_id / "preprocessed"
-        output_dir.mkdir(parents=True, exist_ok=True)
+        update_job_status(job_id, JobStatus.PROCESSING, progress=10)
+        preprocessed_dir = Path(settings.OUTPUT_DIR).resolve() / job_id / "preprocessed"
+        preprocessed_dir.mkdir(parents=True, exist_ok=True)
 
         input_name = Path(input_file_path).name
         stem = input_name[:-7] if input_name.endswith(".nii.gz") else Path(input_name).stem
-        output_path = output_dir / f"preprocessed_{stem}.nii.gz"
+        preprocessed_path = preprocessed_dir / f"preprocessed_{stem}.nii.gz"
+
+        update_job_status(job_id, JobStatus.PROCESSING, progress=15)
+        pipeline.process(input_path=input_file_path, output_path=str(preprocessed_path))
 
         update_job_status(job_id, JobStatus.PROCESSING, progress=45)
-        pipeline.process(input_path=input_file_path, output_path=str(output_path))
-
-        update_job_status(job_id, JobStatus.PROCESSING, progress=85)
-        output_url = build_file_url(str(output_path), job_id)
+        preprocessed_url, sr_url = _run_sr_phase(job_id, preprocessed_path, stem)
 
         update_job_status(
             job_id,
             JobStatus.COMPLETED,
             progress=100,
-            output_files=[{"hr": output_url, "lr_variants": {}}],
-            hr_file_url=output_url,
-            lr_file_url=output_url,
+            output_files=[
+                {
+                    "hr": sr_url,
+                    "lr_variants": {"preprocessed": preprocessed_url},
+                }
+            ],
+            hr_file_url=sr_url,
+            lr_file_url=preprocessed_url,
         )
 
-        logger.info("[preprocess_lr_for_inference_task] Job %s completed", job_id)
+        logger.info(
+            "[preprocess_lr_for_inference_task] Job %s completed (preprocess + SR)",
+            job_id,
+        )
         return {
             "status": "success",
             "job_id": job_id,
-            "preprocessed_file_url": output_url,
+            "preprocessed_file_url": preprocessed_url,
+            "sr_file_url": sr_url,
         }
 
     except Exception as exc:
-        logger.exception("[preprocess_lr_for_inference_task] Job %s failed: %s", job_id, exc)
+        logger.exception(
+            "[preprocess_lr_for_inference_task] Job %s failed: %s", job_id, exc
+        )
         update_job_status(job_id, JobStatus.FAILED, error_message=str(exc))
         raise
 
 
 # ---------------------------------------------------------------------------
-# Task: super-resolution inference
+# Task: super-resolution inference (manual retry via POST /api/infer)
 # ---------------------------------------------------------------------------
 
 @shared_task(
@@ -182,92 +196,53 @@ def preprocess_lr_for_inference_task(self, job_id: str, input_file_path: str):
 )
 def inference_task(self, job_id: str, input_files: list):
     """
-    Execute super-resolution inference on preprocessed LR images.
-
-    Steps:
-      1. Load SR model (cached singleton).
-      2. For each file: load LR image → preprocess → run model → post-process → save.
-      3. Mark job completed with output file paths.
+    Run LoHiResGAN on output from a completed preprocess job.
 
     Args:
-        job_id:      User inference job primary key.
-        input_files: List of preprocessed LR file paths or dicts.
+        job_id:      New inference job primary key.
+        input_files: Preprocess job ``output_files`` list (dicts with URLs).
     """
     try:
-        update_job_status(job_id, JobStatus.PROCESSING, progress=0)
+        update_job_status(job_id, JobStatus.PROCESSING, progress=5)
 
-        update_job_status(job_id, JobStatus.PROCESSING, progress=10)
-        model = model_manager.load_model()
+        if not input_files:
+            raise ValueError("No input files provided for inference")
 
-        if model is None:
-            raise Exception("SR model not loaded. Ensure the model file exists at settings.MODEL_PATH.")
+        preprocessed_path = _resolve_preprocessed_path(input_files[0])
+        input_name = preprocessed_path.name
+        if input_name.endswith(".nii.gz"):
+            stem = input_name[:-7]
+        else:
+            stem = preprocessed_path.stem
+        if stem.startswith("preprocessed_"):
+            stem = stem[len("preprocessed_") :]
 
-        output_dir = os.path.join(settings.OUTPUT_DIR, job_id)
-        os.makedirs(output_dir, exist_ok=True)
-
-        output_files = []
-
-        for idx, file_info in enumerate(input_files):
-            lr_path = file_info.get("lr") if isinstance(file_info, dict) else file_info
-
-            if not os.path.exists(lr_path):
-                logger.warning("[inference_task] File not found, skipping: %s", lr_path)
-                continue
-
-            base_progress = 20 + int((idx / len(input_files)) * 70)
-            update_job_status(job_id, JobStatus.PROCESSING, progress=base_progress)
-
-            logger.info("[inference_task] Loading LR image: %s", lr_path)
-            lr_image = ants.image_read(lr_path)
-            lr_array = lr_image.numpy()
-
-            update_job_status(job_id, JobStatus.PROCESSING, progress=base_progress + 10)
-            lr_tensor = torch.from_numpy(lr_array).float()
-            lr_tensor = lr_tensor.unsqueeze(0).unsqueeze(0)  # (1, 1, D, H, W)
-
-            update_job_status(job_id, JobStatus.PROCESSING, progress=base_progress + 30)
-            logger.info("[inference_task] Running SR model inference…")
-            with torch.no_grad():
-                sr_tensor = model(lr_tensor)
-
-            update_job_status(job_id, JobStatus.PROCESSING, progress=base_progress + 50)
-            sr_array = sr_tensor.squeeze().numpy()
-
-            sr_image = ants.from_numpy(
-                sr_array,
-                origin=lr_image.origin,
-                spacing=lr_image.spacing,
-                direction=lr_image.direction,
-            )
-
-            update_job_status(job_id, JobStatus.PROCESSING, progress=base_progress + 70)
-            sr_filename = f"sr_{idx}.nii.gz"
-            sr_path = os.path.join(output_dir, sr_filename)
-            ants.image_write(sr_image, sr_path)
-            output_files.append(sr_path)
-
-        # TODO: Add PSNR / SSIM metrics once HR reference is available.
-        metrics: dict = {}
+        update_job_status(job_id, JobStatus.PROCESSING, progress=20)
+        preprocessed_url, sr_url = _run_sr_phase(job_id, preprocessed_path, stem)
 
         update_job_status(
             job_id,
             JobStatus.COMPLETED,
             progress=100,
-            output_files=output_files,
-            hr_file_url=f"/api/files/{job_id}/sr_0.nii.gz",
-            metrics=metrics,
+            output_files=[
+                {
+                    "hr": sr_url,
+                    "lr_variants": {"preprocessed": preprocessed_url},
+                }
+            ],
+            hr_file_url=sr_url,
+            lr_file_url=preprocessed_url,
+            metrics={},
         )
 
-        logger.info("[inference_task] Job %s completed, %d files produced", job_id, len(output_files))
+        logger.info("[inference_task] Job %s completed", job_id)
         return {
             "status": "success",
             "job_id": job_id,
-            "output_files": output_files,
-            "metrics": metrics,
+            "sr_file_url": sr_url,
         }
 
     except Exception as exc:
-        import traceback
-        traceback.print_exc()
+        logger.exception("[inference_task] Job %s failed: %s", job_id, exc)
         update_job_status(job_id, JobStatus.FAILED, error_message=str(exc))
         raise

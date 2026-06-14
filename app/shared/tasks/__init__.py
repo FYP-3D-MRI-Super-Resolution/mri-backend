@@ -7,7 +7,7 @@ Provides:
 """
 
 from .celery_app import celery_app
-from .task_helpers import update_job_status, build_file_url
+from .task_helpers import update_job_status, build_file_url, resolve_output_path
 
 __all__ = [
     "celery_app",

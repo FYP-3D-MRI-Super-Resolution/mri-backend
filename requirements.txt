@@ -31,3 +31,6 @@ tqdm
 fire
 matplotlib
 HD-BET
+# LoHiResGAN super-resolution (TensorFlow)
+tensorflow>=2.12,<2.16
+opencv-python-headless>=4.6.0

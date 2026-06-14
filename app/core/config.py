@@ -43,6 +43,7 @@ class Settings(BaseSettings):
     
     # Model
     MODEL_PATH: str = "./models/best_model.pth"
+    LOHIRESGAN_MODEL_DIR: str = "./model/lohiresgan/Trained_Model_T1"
 
     # mri_sr_pipeline integration
     PIPELINE_DIR: str = "../mri_sr_pipeline"
