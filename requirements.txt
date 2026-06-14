@@ -30,7 +30,8 @@ scikit-image
 tqdm
 fire
 matplotlib
-hd-bet
+# PyPI sdist has broken metadata on older pip; install from source instead
+HD-BET @ git+https://github.com/MIC-DKFZ/HD-BET.git@v2.0.1
 # Res-SRDiff super-resolution (PyTorch diffusion)
 lpips>=0.1.4
 piq>=0.8.0

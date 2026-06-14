@@ -23,6 +23,9 @@ RUN apt-get update && apt-get install -y \
 # Copy requirements
 COPY requirements.txt .
 
+# Ubuntu 22.04 ships pip 22.x; newer pip handles modern package metadata correctly
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel
+
 # PyTorch with CUDA 11.8
 RUN pip install --no-cache-dir --default-timeout=120 --retries=5 \
     torch==2.5.1 torchvision==0.20.1 \
