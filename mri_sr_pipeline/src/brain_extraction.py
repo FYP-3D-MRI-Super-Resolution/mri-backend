@@ -90,6 +90,9 @@ class BrainExtractor:
         output_path = os.path.join(temp_dir, "temp_output.nii.gz")
         
         try:
+            # nnUNet spawns multiprocessing pools; limit to 1 inside Celery workers
+            os.environ.setdefault("nnUNet_def_num_processes", "1")
+
             # Save ANTsPy image to temporary NIfTI file
             ants.image_write(ants_image, input_path)
             

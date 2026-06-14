@@ -45,6 +45,7 @@ services:
       PIPELINE_DIR: /app/mri_sr_pipeline
       PIPELINE_CONFIG: /app/mri_sr_pipeline/configs/config.yaml
       TEMPLATE_DIR: /app/mri_sr_pipeline/data/templates
+      nnUNet_def_num_processes: "1"
     volumes:
       - ./data:/app/data
       - ./model:/app/model
@@ -72,6 +73,7 @@ services:
       PIPELINE_DIR: /app/mri_sr_pipeline
       PIPELINE_CONFIG: /app/mri_sr_pipeline/configs/config.yaml
       TEMPLATE_DIR: /app/mri_sr_pipeline/data/templates
+      nnUNet_def_num_processes: "1"
     volumes:
       - ./data:/app/data
       - ./model:/app/model
@@ -84,6 +86,7 @@ services:
     command: >
       celery -A app.shared.tasks.celery_app worker
       --loglevel=info
+      --pool=threads
       -Q preprocessing
       --concurrency=2
       --hostname=worker_preprocessing@%h
@@ -105,6 +108,7 @@ services:
       PIPELINE_DIR: /app/mri_sr_pipeline
       PIPELINE_CONFIG: /app/mri_sr_pipeline/configs/config.yaml
       TEMPLATE_DIR: /app/mri_sr_pipeline/data/templates
+      nnUNet_def_num_processes: "1"
     volumes:
       - ./data:/app/data
       - ./model:/app/model
@@ -124,8 +128,8 @@ services:
     command: >
       celery -A app.shared.tasks.celery_app worker
       --loglevel=info
+      --pool=solo
       -Q inference
-      --concurrency=1
       --hostname=worker_inference@%h
 
 volumes:

@@ -1,6 +1,7 @@
 import os
 import ants
 import yaml
+import torch
 from .normalize import IntensityNormalizer
 from .brain_extraction import BrainExtractor
 from .utils import setup_logger
@@ -27,8 +28,13 @@ class MRIInferencePipeline:
         
         # Initialize Modules
         if self.cfg['preprocessing'].get('brain_extraction', {}).get('enabled', False):
+            bet_device = self.cfg['preprocessing']['brain_extraction'].get('device', 'cpu')
+            if bet_device == 'cuda' and not torch.cuda.is_available():
+                bet_device = 'cpu'
+            elif bet_device == 'cpu' and torch.cuda.is_available():
+                bet_device = 'cuda'
             self.brain_extractor = BrainExtractor(
-                device=self.cfg['preprocessing']['brain_extraction'].get('device', 'cpu'),
+                device=bet_device,
                 disable_tta=self.cfg['preprocessing']['brain_extraction'].get('disable_tta', True),
                 keep_mask=self.cfg['preprocessing']['brain_extraction'].get('keep_mask', False)
             )
