@@ -22,6 +22,11 @@ from pathlib import Path
 
 from celery import shared_task
 from app.core.config import settings
+from app.shared.utils.pipeline_paths import (
+    resolve_pipeline_config,
+    resolve_pipeline_dir,
+    resolve_template_dir,
+)
 from app.shared.tasks.task_helpers import update_job_status, build_file_url
 from app.shared.models import JobStatus
 
@@ -31,7 +36,7 @@ logger = logging.getLogger(__name__)
 # Pipeline import
 # ---------------------------------------------------------------------------
 
-PIPELINE_DIR = Path(settings.PIPELINE_DIR).resolve()
+PIPELINE_DIR = resolve_pipeline_dir()
 sys.path.insert(0, str(PIPELINE_DIR))
 
 try:
@@ -62,11 +67,11 @@ def _write_job_config(job_id: str, output_dir: str) -> str:
     Returns:
         Absolute path to the temporary config file.
     """
-    base_config = Path(settings.PIPELINE_CONFIG).resolve()
+    base_config = resolve_pipeline_config()
     with open(base_config) as fh:
         cfg = yaml.safe_load(fh)
 
-    template_dir = Path(settings.TEMPLATE_DIR).resolve()
+    template_dir = resolve_template_dir()
 
     cfg["paths"]["output_dir"] = output_dir
     cfg["paths"]["intermediate_dir"] = os.path.join(output_dir, "intermediate")

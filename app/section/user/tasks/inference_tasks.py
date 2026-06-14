@@ -27,6 +27,11 @@ from celery import shared_task
 
 
 from app.core.config import settings
+from app.shared.utils.pipeline_paths import (
+    resolve_pipeline_config,
+    resolve_pipeline_dir,
+    resolve_template_dir,
+)
 
 from app.shared.models import JobStatus
 
@@ -54,20 +59,7 @@ logger = logging.getLogger(__name__)
 
 
 
-_pipeline_candidates = [
-    Path(settings.PIPELINE_DIR),                               # config default: ./mri_sr_pipeline
-    Path(__file__).resolve().parents[4] / "mri_sr_pipeline",  # bundled inside mri-backend
-    Path("/app/mri_sr_pipeline"),                              # Docker absolute fallback
-    Path("../mri_sr_pipeline"),                                # legacy sibling-repo layout
-]
-
-PIPELINE_DIR = next(
-
-    (c.resolve() for c in _pipeline_candidates if c.exists()),
-
-    Path(settings.PIPELINE_DIR).resolve(),
-
-)
+PIPELINE_DIR = resolve_pipeline_dir()
 
 sys.path.insert(0, str(PIPELINE_DIR))
 
@@ -129,7 +121,12 @@ class InferencePreprocessPipelineManager:
 
         if self._pipeline is None:
 
-            config_path = PIPELINE_DIR / "configs" / "config.yaml"
+            config_path = resolve_pipeline_config()
+            if not config_path.is_file():
+                raise FileNotFoundError(
+                    f"Pipeline config not found at {config_path} "
+                    f"(pipeline root: {PIPELINE_DIR})"
+                )
 
             self._pipeline = MRIInferencePipeline(str(config_path))
 
